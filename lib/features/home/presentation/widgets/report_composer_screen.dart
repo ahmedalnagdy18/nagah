@@ -1,0 +1,292 @@
+import 'package:flutter/material.dart';
+import 'package:nagah/features/home/domain/model/home_models.dart';
+import 'package:nagah/features/home/presentation/widgets/section_card.dart';
+
+class ReportComposerScreen extends StatefulWidget {
+  const ReportComposerScreen({
+    super.key,
+    required this.roads,
+    required this.selectedLocation,
+    required this.onSubmit,
+  });
+
+  final List<RoadSegment> roads;
+  final LocationPoint selectedLocation;
+  final void Function({
+    required String roadId,
+    required IssueType issueType,
+    required String description,
+    required bool hasImage,
+  })
+  onSubmit;
+
+  @override
+  State<ReportComposerScreen> createState() => _ReportComposerScreenState();
+}
+
+class _ReportComposerScreenState extends State<ReportComposerScreen> {
+  late IssueType _issueType;
+  String? _roadId;
+  final TextEditingController _descriptionController = TextEditingController();
+  bool _hasImage = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _issueType = IssueType.accident;
+    _roadId = widget.roads.isEmpty ? null : widget.roads.first.id;
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final road = _findSelectedRoad();
+    final hasRoads = widget.roads.isNotEmpty;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF5F7FB),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF5F7FB),
+        title: const Text('Create report'),
+      ),
+      body: ListView(
+        padding: const EdgeInsets.all(20),
+        children: [
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Issue type',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: IssueType.values.map((type) {
+                    final selected = _issueType == type;
+                    return ChoiceChip(
+                      label: Text(type.label),
+                      selected: selected,
+                      onSelected: (_) {
+                        setState(() {
+                          _issueType = type;
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Location and road',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF9FAFB),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.place_rounded, color: Color(0xFFDC2626)),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          '${widget.selectedLocation.latitude.toStringAsFixed(5)}, ${widget.selectedLocation.longitude.toStringAsFixed(5)}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                if (hasRoads)
+                  DropdownButtonFormField<String>(
+                    initialValue: _roadId,
+                    decoration: const InputDecoration(
+                      labelText: 'Affected road',
+                      border: OutlineInputBorder(),
+                    ),
+                    items: widget.roads
+                        .map(
+                          (roadItem) => DropdownMenuItem<String>(
+                            value: roadItem.id,
+                            child: Text(roadItem.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _roadId = value;
+                      });
+                    },
+                  )
+                else
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFEDD5),
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Text(
+                      'No roads were loaded from the backend yet. Add roads first before creating reports.',
+                    ),
+                  ),
+                const SizedBox(height: 8),
+                Text(
+                  'Selected from the map. Later this will come from API and GPS picker.',
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Description',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _descriptionController,
+                  maxLines: 5,
+                  decoration: InputDecoration(
+                    hintText: 'Describe the road issue clearly for review.',
+                    filled: true,
+                    fillColor: const Color(0xFFF9FAFB),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(18),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          SectionCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Optional image',
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _hasImage = !_hasImage;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(18),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFD1D5DB)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          height: 56,
+                          width: 56,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF111827),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Icon(
+                            _hasImage
+                                ? Icons.image_rounded
+                                : Icons.add_a_photo_rounded,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Text(
+                            _hasImage
+                                ? 'Mock image attached and ready for API upload.'
+                                : 'Tap to simulate attaching an image preview.',
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          FilledButton.icon(
+            onPressed: !hasRoads || road == null
+                ? null
+                : () {
+                    if (_descriptionController.text.trim().isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Please add a short description.'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    widget.onSubmit(
+                      roadId: road.id,
+                      issueType: _issueType,
+                      description: _descriptionController.text.trim(),
+                      hasImage: _hasImage,
+                    );
+                    _descriptionController.clear();
+                    setState(() {
+                      _hasImage = false;
+                      _issueType = IssueType.accident;
+                    });
+                  },
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+            ),
+            icon: const Icon(Icons.send_rounded),
+            label: const Text('Submit for admin review'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  RoadSegment? _findSelectedRoad() {
+    for (final road in widget.roads) {
+      if (road.id == _roadId) {
+        return road;
+      }
+    }
+
+    return null;
+  }
+}
