@@ -24,9 +24,7 @@ class OtpScreen extends StatefulWidget {
 }
 
 class _OtpScreenState extends State<OtpScreen> {
-  final TextEditingController _otpController = TextEditingController(
-    text: '1234',
-  );
+  final TextEditingController _otpController = TextEditingController();
 
   @override
   void dispose() {
@@ -42,8 +40,7 @@ class _OtpScreenState extends State<OtpScreen> {
 
     return AuthShell(
       title: 'OTP Verification',
-      subtitle:
-          'Enter the code we sent for $purposeLabel. In mock mode the code is ${widget.session.hintCode}.',
+      subtitle: 'Enter the code we sent for $purposeLabel.',
       footer: Center(
         child: TextButton(
           onPressed: widget.onBack,

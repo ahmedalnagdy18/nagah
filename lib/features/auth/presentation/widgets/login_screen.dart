@@ -24,12 +24,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final TextEditingController _emailController = TextEditingController(
-    text: 'demo.user@nagah.app',
-  );
-  final TextEditingController _passwordController = TextEditingController(
-    text: '123456',
-  );
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void dispose() {
@@ -63,8 +59,6 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _MockHint(),
-          const SizedBox(height: 16),
           AuthTextField(
             controller: _emailController,
             label: 'Email',
@@ -100,25 +94,6 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _MockHint extends StatelessWidget {
-  const _MockHint();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AuthPalette.primary.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: const Text(
-        'Mock mode: use any valid email and a password with at least 6 characters. Admin login: admin@nagah.app / Admin@123',
-        style: TextStyle(color: AuthPalette.textPrimary, height: 1.4),
       ),
     );
   }

@@ -37,10 +37,25 @@ class AuthRemoteDataSource {
     }
     _validatePassword(params.password);
 
+    final normalizedEmail = params.email.trim().toLowerCase();
+    final existingUsers = await _client.getList(
+      'users',
+      query: {
+        'select': 'id,email',
+        'email': 'eq.$normalizedEmail',
+      },
+    );
+
+    if (existingUsers.isNotEmpty) {
+      throw Exception(
+        'This email is already registered. Please log in instead.',
+      );
+    }
+
     await _client.insert(
       'users',
       body: {
-        'email': params.email.trim().toLowerCase(),
+        'email': normalizedEmail,
         'phone': params.phone.trim(),
         'password_hash': params.password.trim(),
         'full_name': params.name.trim(),
@@ -53,7 +68,7 @@ class AuthRemoteDataSource {
     final otpRow = await _client.insert(
       'otp',
       body: {
-        'email': params.email.trim().toLowerCase(),
+        'email': normalizedEmail,
         'code': code,
         'purpose': 'register',
       },

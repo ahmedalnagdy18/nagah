@@ -9,10 +9,12 @@ class MyReportsScreen extends StatelessWidget {
     super.key,
     required this.reports,
     required this.roads,
+    required this.onRefresh,
   });
 
   final List<RoadIssueReport> reports;
   final List<RoadSegment> roads;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -22,42 +24,57 @@ class MyReportsScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFF5F7FB),
         title: const Text('My reports'),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              StatCard(
-                title: 'Pending',
-                value:
-                    '${reports.where((r) => r.status == ReportStatus.pending).length}',
-                color: ReportStatus.pending.color,
-              ),
-              StatCard(
-                title: 'Approved',
-                value:
-                    '${reports.where((r) => r.status == ReportStatus.approved).length}',
-                color: ReportStatus.approved.color,
-              ),
-              StatCard(
-                title: 'Rejected',
-                value:
-                    '${reports.where((r) => r.status == ReportStatus.rejected).length}',
-                color: ReportStatus.rejected.color,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          ...reports.map((report) {
-            final roadName = _resolveRoadName(report.roadId);
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: _ReportCard(report: report, roadName: roadName),
-            );
-          }),
-        ],
+      body: RefreshIndicator(
+        onRefresh: onRefresh,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            const Text(
+              'Statuses update automatically every few seconds. You can also pull down to refresh now.',
+              style: TextStyle(color: Color(0xFF6B7280), height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              children: [
+                StatCard(
+                  title: 'Pending',
+                  value:
+                      '${reports.where((r) => r.status == ReportStatus.pending).length}',
+                  color: ReportStatus.pending.color,
+                ),
+                StatCard(
+                  title: 'Approved',
+                  value:
+                      '${reports.where((r) => r.status == ReportStatus.approved).length}',
+                  color: ReportStatus.approved.color,
+                ),
+                StatCard(
+                  title: 'Rejected',
+                  value:
+                      '${reports.where((r) => r.status == ReportStatus.rejected).length}',
+                  color: ReportStatus.rejected.color,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (reports.isEmpty)
+              const SectionCard(
+                child: Text(
+                  'No reports yet. Create a new report from the map to start tracking its status here.',
+                ),
+              )
+            else
+              ...reports.map((report) {
+                final roadName = _resolveRoadName(report.roadId);
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: _ReportCard(report: report, roadName: roadName),
+                );
+              }),
+          ],
+        ),
       ),
     );
   }

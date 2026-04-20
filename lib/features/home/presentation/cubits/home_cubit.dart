@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nagah/features/home/domain/model/home_models.dart';
 import 'package:nagah/features/home/domain/usecase/home_usecases.dart';
@@ -22,9 +24,64 @@ class HomeCubit extends Cubit<HomeState> {
   final RecenterMapUseCase _recenterMapUseCase;
   final SubmitReportUseCase _submitReportUseCase;
   final UpdateReportStatusUseCase _updateReportStatusUseCase;
+  Timer? _pollingTimer;
 
   Future<void> initialize() async {
-    emit(state.copyWith(status: HomeViewStatus.loading, clearError: true));
+    await refreshDashboard();
+    _startAutoRefresh();
+  }
+
+  void changeTab(int index) {
+    emit(state.copyWith(currentTab: index, clearMessage: true));
+
+    if (index == 2) {
+      unawaited(refreshDashboard(silent: true));
+    }
+  }
+
+  void openReportComposer() {
+    emit(state.copyWith(currentTab: 1, clearMessage: true));
+  }
+
+  Future<void> selectMapLocation(LocationPoint location) async {
+    final dashboard = await _selectMapLocationUseCase(location);
+    emit(state.copyWith(dashboard: dashboard, clearMessage: true));
+  }
+
+  Future<void> recenterMap() async {
+    final dashboard = await _recenterMapUseCase();
+    emit(state.copyWith(dashboard: dashboard, clearMessage: true));
+  }
+
+  Future<void> submitReport({
+    String? roadId,
+    required IssueType issueType,
+    required String description,
+    String? imagePath,
+  }) async {
+    final dashboard = await _submitReportUseCase(
+      SubmitReportParams(
+        roadId: roadId,
+        issueType: issueType,
+        description: description,
+        imagePath: imagePath,
+      ),
+    );
+    print("${state.errorMessage} ddddddddddddddd");
+    emit(
+      state.copyWith(
+        dashboard: dashboard,
+        currentTab: 2,
+        message:
+            'Report saved as pending. It is ready for API submission later.',
+      ),
+    );
+  }
+
+  Future<void> refreshDashboard({bool silent = false}) async {
+    if (!silent || state.dashboard == null) {
+      emit(state.copyWith(status: HomeViewStatus.loading, clearError: true));
+    }
 
     try {
       final dashboard = await _getHomeDashboardUseCase();
@@ -43,49 +100,6 @@ class HomeCubit extends Cubit<HomeState> {
         ),
       );
     }
-  }
-
-  void changeTab(int index) {
-    emit(state.copyWith(currentTab: index, clearMessage: true));
-  }
-
-  void openReportComposer() {
-    emit(state.copyWith(currentTab: 1, clearMessage: true));
-  }
-
-  Future<void> selectMapLocation(LocationPoint location) async {
-    final dashboard = await _selectMapLocationUseCase(location);
-    emit(state.copyWith(dashboard: dashboard, clearMessage: true));
-  }
-
-  Future<void> recenterMap() async {
-    final dashboard = await _recenterMapUseCase();
-    emit(state.copyWith(dashboard: dashboard, clearMessage: true));
-  }
-
-  Future<void> submitReport({
-    required String roadId,
-    required IssueType issueType,
-    required String description,
-    required bool hasImage,
-  }) async {
-    final dashboard = await _submitReportUseCase(
-      SubmitReportParams(
-        roadId: roadId,
-        issueType: issueType,
-        description: description,
-        hasImage: hasImage,
-      ),
-    );
-
-    emit(
-      state.copyWith(
-        dashboard: dashboard,
-        currentTab: 2,
-        message:
-            'Report saved as pending. It is ready for API submission later.',
-      ),
-    );
   }
 
   Future<void> updateReportStatus({
@@ -113,5 +127,18 @@ class HomeCubit extends Cubit<HomeState> {
 
   void clearError() {
     emit(state.copyWith(clearError: true));
+  }
+
+  void _startAutoRefresh() {
+    _pollingTimer?.cancel();
+    _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      unawaited(refreshDashboard(silent: true));
+    });
+  }
+
+  @override
+  Future<void> close() {
+    _pollingTimer?.cancel();
+    return super.close();
   }
 }

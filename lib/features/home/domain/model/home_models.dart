@@ -160,14 +160,14 @@ class HomeDashboard {
 
 class SubmitReportParams {
   const SubmitReportParams({
-    required this.roadId,
+    this.roadId,
     required this.issueType,
     required this.description,
-    required this.hasImage,
+    this.imagePath,
   });
 
-  final String roadId;
+  final String? roadId;
   final IssueType issueType;
   final String description;
-  final bool hasImage;
+  final String? imagePath;
 }

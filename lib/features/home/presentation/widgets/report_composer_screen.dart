@@ -1,4 +1,7 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:nagah/features/home/domain/model/home_models.dart';
 import 'package:nagah/features/home/presentation/widgets/section_card.dart';
 
@@ -13,10 +16,10 @@ class ReportComposerScreen extends StatefulWidget {
   final List<RoadSegment> roads;
   final LocationPoint selectedLocation;
   final void Function({
-    required String roadId,
+    required String? roadId,
     required IssueType issueType,
     required String description,
-    required bool hasImage,
+    required String? imagePath,
   })
   onSubmit;
 
@@ -28,7 +31,8 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
   late IssueType _issueType;
   String? _roadId;
   final TextEditingController _descriptionController = TextEditingController();
-  bool _hasImage = false;
+  final ImagePicker _imagePicker = ImagePicker();
+  String? _imagePath;
 
   @override
   void initState() {
@@ -45,7 +49,6 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final road = _findSelectedRoad();
     final hasRoads = widget.roads.isNotEmpty;
 
     return Scaffold(
@@ -148,12 +151,12 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: const Text(
-                      'No roads were loaded from the backend yet. Add roads first before creating reports.',
+                      'No roads were loaded from the backend yet. You can still send the report using the picked map location.',
                     ),
                   ),
                 const SizedBox(height: 8),
                 Text(
-                  'Selected from the map. Later this will come from API and GPS picker.',
+                  'Choose the accident point from the map. If you do not choose one, the app will use your current location.',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ],
@@ -196,42 +199,81 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
                 ),
                 const SizedBox(height: 12),
                 GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _hasImage = !_hasImage;
-                    });
-                  },
+                  onTap: _pickImageFromGallery,
                   child: Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: const Color(0xFFD1D5DB)),
                     ),
-                    child: Row(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          height: 56,
-                          width: 56,
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF111827),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Icon(
-                            _hasImage
-                                ? Icons.image_rounded
-                                : Icons.add_a_photo_rounded,
-                            color: Colors.white,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              height: 56,
+                              width: 56,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF111827),
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: Icon(
+                                _imagePath != null
+                                    ? Icons.image_rounded
+                                    : Icons.add_a_photo_rounded,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Text(
+                                _imagePath != null
+                                    ? 'Image selected from gallery. Tap again to change it.'
+                                    : 'You can send the report without an image, or tap here to choose one from gallery.',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Text(
-                            _hasImage
-                                ? 'Mock image attached and ready for API upload.'
-                                : 'Tap to simulate attaching an image preview.',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                        if (_imagePath != null) ...[
+                          const SizedBox(height: 14),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.file(
+                              File(_imagePath!),
+                              height: 180,
+                              width: double.infinity,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  height: 180,
+                                  width: double.infinity,
+                                  color: const Color(0xFFF3F4F6),
+                                  alignment: Alignment.center,
+                                  child: const Text(
+                                    'Could not preview the selected image.',
+                                  ),
+                                );
+                              },
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 10),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _imagePath = null;
+                                });
+                              },
+                              icon: const Icon(Icons.delete_outline_rounded),
+                              label: const Text('Remove image'),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -241,30 +283,31 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
           ),
           const SizedBox(height: 20),
           FilledButton.icon(
-            onPressed: !hasRoads || road == null
-                ? null
-                : () {
-                    if (_descriptionController.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Please add a short description.'),
-                        ),
-                      );
-                      return;
-                    }
+            onPressed: () {
+              if (_descriptionController.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Please add a short description.'),
+                  ),
+                );
+                return;
+              }
 
-                    widget.onSubmit(
-                      roadId: road.id,
-                      issueType: _issueType,
-                      description: _descriptionController.text.trim(),
-                      hasImage: _hasImage,
-                    );
-                    _descriptionController.clear();
-                    setState(() {
-                      _hasImage = false;
-                      _issueType = IssueType.accident;
-                    });
-                  },
+              widget.onSubmit(
+                roadId: _roadId,
+                issueType: _issueType,
+                description: _descriptionController.text.trim(),
+                imagePath: _imagePath,
+              );
+              _descriptionController.clear();
+              setState(() {
+                _imagePath = null;
+                _issueType = IssueType.accident;
+                if (widget.roads.isNotEmpty) {
+                  _roadId = widget.roads.first.id;
+                }
+              });
+            },
             style: FilledButton.styleFrom(
               backgroundColor: const Color(0xFFDC2626),
               padding: const EdgeInsets.symmetric(vertical: 18),
@@ -280,13 +323,18 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
     );
   }
 
-  RoadSegment? _findSelectedRoad() {
-    for (final road in widget.roads) {
-      if (road.id == _roadId) {
-        return road;
-      }
+  Future<void> _pickImageFromGallery() async {
+    final pickedFile = await _imagePicker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (!mounted || pickedFile == null) {
+      return;
     }
 
-    return null;
+    setState(() {
+      _imagePath = pickedFile.path;
+    });
   }
 }

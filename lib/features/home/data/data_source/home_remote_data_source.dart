@@ -7,26 +7,31 @@ class HomeRemoteDataSource {
     : _currentLocation = const LocationPointModel(
         latitude: 31.4165,
         longitude: 31.8133,
-      ),
-      _selectedLocation = const LocationPointModel(
-        latitude: 31.4172,
-        longitude: 31.8151,
       );
 
   final SupabaseRestClient _client;
   final LocationPointModel _currentLocation;
+
   LocationPointModel? _selectedLocation;
   List<RoadSegmentModel> _roads = const [];
   List<RoadIssueReportModel> _reports = const [];
 
   Future<HomeDashboardModel> getDashboard() async {
-    final roadRows = await _client.getList('roads', query: {'select': '*'});
-    final reportRows = await _client.getList('reports', query: {'select': '*'});
+    final roadRows = await _client.getList(
+      'roads',
+      query: {'select': '*'},
+    );
 
-    _reports = reportRows.map(_mapReport).toList();
+    final reportRows = await _client.getList(
+      'reports',
+      query: {'select': '*'},
+    );
+
     _roads = roadRows.map(_mapRoad).toList();
+    _reports = reportRows.map(_mapReport).toList();
 
     final approvedCounts = <String, int>{};
+
     for (final report in _reports.where(
       (item) => item.status == ReportStatus.approved,
     )) {
@@ -48,7 +53,9 @@ class HomeRemoteDataSource {
     return _buildDashboard();
   }
 
-  Future<HomeDashboardModel> selectLocation(LocationPointModel location) async {
+  Future<HomeDashboardModel> selectLocation(
+    LocationPointModel location,
+  ) async {
     _selectedLocation = location;
     return _buildDashboard();
   }
@@ -59,27 +66,32 @@ class HomeRemoteDataSource {
   }
 
   Future<HomeDashboardModel> submitReport({
-    required String roadId,
+    String? roadId,
     required IssueType issueType,
     required String description,
-    required bool hasImage,
+    String? imagePath,
   }) async {
-    final point = _selectedLocation ?? _currentLocation;
+    final body = <String, dynamic>{
+      'description': '[${issueType.name}] $description',
+      'status': 'pending',
+    };
 
-    await _client.insert(
-      'reports',
-      body: {
-        'road_id': roadId,
-        'issue_type': issueType.name,
-        'description': description,
-        'status': 'pending',
-        'image_url': hasImage ? 'pending_upload_preview.jpg' : null,
-        'admin_note': null,
-        'location_lat': point.latitude,
-        'location_lng': point.longitude,
-        'submitted_by': 'Current user',
-      },
-    );
+    if (roadId != null && roadId.isNotEmpty) {
+      body['road_id'] = roadId;
+    }
+
+    if (imagePath != null && imagePath.isNotEmpty) {
+      body['image_url'] = imagePath;
+    }
+
+    try {
+      await _client.insert(
+        'reports',
+        body: body,
+      );
+    } catch (e) {
+      throw Exception('Failed to submit report: $e');
+    }
 
     return getDashboard();
   }
@@ -89,26 +101,32 @@ class HomeRemoteDataSource {
     required ReportStatus status,
   }) async {
     final cachedReport = _findReportById(reportId);
+
     final report =
         cachedReport ??
         (await _client.getList(
           'reports',
-          query: {'select': '*', 'id': 'eq.$reportId'},
+          query: {
+            'select': '*',
+            'id': 'eq.$reportId',
+          },
         )).map(_mapReport).first;
 
-    await _client.update(
-      'reports',
-      query: {'id': 'eq.$reportId'},
-      body: {
-        'status': status.name,
-        'admin_note': status == ReportStatus.approved
-            ? 'Approved by admin review panel.'
-            : 'Rejected by admin review panel.',
-      },
-    );
+    try {
+      await _client.update(
+        'reports',
+        query: {'id': 'eq.$reportId'},
+        body: {
+          'status': status.name,
+        },
+      );
+    } catch (e) {
+      throw Exception('Failed to update report status: $e');
+    }
 
     if (status == ReportStatus.approved) {
       final road = _findRoadById(report.roadId);
+
       final nextRiskLevel = _mapRiskLevelToApi(
         _resolveNextRiskLevel(
           issueType: report.issueType,
@@ -119,7 +137,9 @@ class HomeRemoteDataSource {
       await _client.update(
         'roads',
         query: {'id': 'eq.${report.roadId}'},
-        body: {'risk_level': nextRiskLevel},
+        body: {
+          'risk_level': nextRiskLevel,
+        },
       );
     }
 
@@ -139,10 +159,15 @@ class HomeRemoteDataSource {
     final lat = _toDouble(
       json['location_lat'] ?? json['latitude'] ?? json['lat'],
     );
+
     final lng = _toDouble(
       json['location_lng'] ?? json['longitude'] ?? json['lng'],
     );
-    final center = LocationPointModel(latitude: lat, longitude: lng);
+
+    final center = LocationPointModel(
+      latitude: lat,
+      longitude: lng,
+    );
 
     return RoadSegmentModel(
       id: json['id']?.toString() ?? '',
@@ -154,31 +179,25 @@ class HomeRemoteDataSource {
   }
 
   RoadIssueReportModel _mapReport(Map<String, dynamic> json) {
+    final description = json['description']?.toString() ?? '';
+
     return RoadIssueReportModel(
       id: json['id']?.toString() ?? '',
       roadId: json['road_id']?.toString() ?? '',
-      issueType: _parseIssueType(json['issue_type']?.toString()),
-      description: json['description']?.toString() ?? '',
-      location: LocationPointModel(
-        latitude: _toDouble(
-          json['location_lat'] ?? json['latitude'] ?? json['lat'],
-        ),
-        longitude: _toDouble(
-          json['location_lng'] ?? json['longitude'] ?? json['lng'],
-        ),
+      issueType: _parseIssueTypeFromDescription(description),
+      description: _cleanDescription(description),
+      location: _selectedLocation ?? _currentLocation,
+      status: _parseReportStatus(
+        json['status']?.toString(),
       ),
-      status: _parseReportStatus(json['status']?.toString()),
       createdAt:
           DateTime.tryParse(
             json['created_at']?.toString() ?? '',
           ) ??
           DateTime.now(),
-      submittedBy:
-          json['submitted_by']?.toString() ??
-          json['full_name']?.toString() ??
-          'Unknown user',
+      submittedBy: 'Unknown user',
       imageLabel: json['image_url']?.toString(),
-      adminNote: json['admin_note']?.toString(),
+      adminNote: null,
     );
   }
 
@@ -243,12 +262,26 @@ class HomeRemoteDataSource {
     };
   }
 
-  IssueType _parseIssueType(String? value) {
-    return switch (value?.toLowerCase()) {
-      'pothole' => IssueType.pothole,
-      'traffic' => IssueType.traffic,
-      _ => IssueType.accident,
-    };
+  IssueType _parseIssueTypeFromDescription(String value) {
+    final lower = value.toLowerCase();
+
+    if (lower.contains('[traffic]')) {
+      return IssueType.traffic;
+    }
+
+    if (lower.contains('[pothole]')) {
+      return IssueType.pothole;
+    }
+
+    return IssueType.accident;
+  }
+
+  String _cleanDescription(String value) {
+    return value
+        .replaceAll('[accident]', '')
+        .replaceAll('[traffic]', '')
+        .replaceAll('[pothole]', '')
+        .trim();
   }
 
   ReportStatus _parseReportStatus(String? value) {

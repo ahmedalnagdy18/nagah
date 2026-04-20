@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:nagah/features/auth/presentation/widgets/auth_palette.dart';
 import 'package:nagah/features/auth/presentation/widgets/auth_primary_button.dart';
 import 'package:nagah/features/auth/presentation/widgets/auth_shell.dart';
 import 'package:nagah/features/auth/presentation/widgets/auth_text_field.dart';
@@ -21,9 +20,7 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final TextEditingController _emailController = TextEditingController(
-    text: 'demo.user@nagah.app',
-  );
+  final TextEditingController _emailController = TextEditingController();
 
   @override
   void dispose() {
@@ -46,29 +43,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: AuthPalette.cardSecondary,
-              borderRadius: BorderRadius.circular(18),
-            ),
-            child: const Row(
-              children: [
-                Icon(
-                  Icons.mark_email_read_outlined,
-                  color: AuthPalette.primary,
-                ),
-                SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'In mock mode the OTP code is always 1234.',
-                    style: TextStyle(color: AuthPalette.textPrimary),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
           AuthTextField(
             controller: _emailController,
             label: 'Email address',

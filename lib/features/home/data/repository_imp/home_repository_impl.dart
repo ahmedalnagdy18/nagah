@@ -34,7 +34,7 @@ class HomeRepositoryImpl implements HomeRepository {
       roadId: params.roadId,
       issueType: params.issueType,
       description: params.description,
-      hasImage: params.hasImage,
+      imagePath: params.imagePath,
     );
     return model.toEntity();
   }

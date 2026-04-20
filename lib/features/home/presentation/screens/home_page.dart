@@ -85,17 +85,21 @@ class _HomeView extends StatelessWidget {
                   required roadId,
                   required issueType,
                   required description,
-                  required hasImage,
+                  required imagePath,
                 }) {
                   cubit.submitReport(
                     roadId: roadId,
                     issueType: issueType,
                     description: description,
-                    hasImage: hasImage,
+                    imagePath: imagePath,
                   );
                 },
           ),
-          MyReportsScreen(reports: dashboard.reports, roads: dashboard.roads),
+          MyReportsScreen(
+            reports: dashboard.reports,
+            roads: dashboard.roads,
+            onRefresh: () => cubit.refreshDashboard(silent: true),
+          ),
         ];
 
         return Scaffold(
