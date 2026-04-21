@@ -21,11 +21,16 @@ class HomeLocalDataSource {
   late List<RoadIssueReportModel> _reports;
 
   HomeDashboardModel getDashboard() {
+    final myReports = _reports
+        .where((report) => report.userId == 'current-user')
+        .toList();
+
     return HomeDashboardModel(
       currentLocation: _currentLocation,
       selectedLocation: _selectedLocation,
       roads: List<RoadSegmentModel>.from(_roads),
       reports: List<RoadIssueReportModel>.from(_reports),
+      myReports: List<RoadIssueReportModel>.from(myReports),
     );
   }
 
@@ -40,21 +45,22 @@ class HomeLocalDataSource {
   }
 
   HomeDashboardModel submitReport({
-    required String roadId,
+    String? roadId,
     required IssueType issueType,
     required String description,
-    required bool hasImage,
+    String? imagePath,
   }) {
     final report = RoadIssueReportModel(
       id: 'rep-${_reports.length + 1}',
-      roadId: roadId,
+      userId: 'current-user',
+      roadId: roadId ?? '',
       issueType: issueType,
       description: description,
       location: _selectedLocation ?? _currentLocation,
       status: ReportStatus.pending,
       createdAt: DateTime.now(),
       submittedBy: 'Current user',
-      imageLabel: hasImage ? 'pending_upload_preview.jpg' : null,
+      imageLabel: imagePath,
     );
 
     _reports = [report, ..._reports];
@@ -64,6 +70,7 @@ class HomeLocalDataSource {
   HomeDashboardModel updateReportStatus({
     required String reportId,
     required ReportStatus status,
+    String? adminNote,
   }) {
     final report = _reports.firstWhere((item) => item.id == reportId);
 
@@ -72,9 +79,11 @@ class HomeLocalDataSource {
           (item) => item.id == reportId
               ? item.copyWith(
                   status: status,
-                  adminNote: status == ReportStatus.approved
-                      ? 'Approved by admin review panel.'
-                      : 'Rejected by admin review panel.',
+                  adminNote:
+                      adminNote ??
+                      (status == ReportStatus.approved
+                          ? 'Approved by admin review panel.'
+                          : 'Rejected by admin review panel.'),
                 )
               : item,
         )
@@ -150,6 +159,7 @@ class HomeLocalDataSource {
     return [
       RoadIssueReportModel(
         id: 'rep-1',
+        userId: 'mahmoud',
         roadId: 'road-3',
         issueType: IssueType.accident,
         description:
@@ -166,6 +176,7 @@ class HomeLocalDataSource {
       ),
       RoadIssueReportModel(
         id: 'rep-2',
+        userId: 'sara',
         roadId: 'road-2',
         issueType: IssueType.traffic,
         description:
@@ -181,6 +192,7 @@ class HomeLocalDataSource {
       ),
       RoadIssueReportModel(
         id: 'rep-3',
+        userId: 'nada',
         roadId: 'road-1',
         issueType: IssueType.pothole,
         description: 'Large road hole close to the service lane.',

@@ -10,11 +10,13 @@ class MyReportsScreen extends StatelessWidget {
     required this.reports,
     required this.roads,
     required this.onRefresh,
+    required this.onLogout,
   });
 
   final List<RoadIssueReport> reports;
   final List<RoadSegment> roads;
   final Future<void> Function() onRefresh;
+  final VoidCallback onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -23,6 +25,13 @@ class MyReportsScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF5F7FB),
         title: const Text('My reports'),
+        actions: [
+          IconButton(
+            onPressed: onLogout,
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: onRefresh,

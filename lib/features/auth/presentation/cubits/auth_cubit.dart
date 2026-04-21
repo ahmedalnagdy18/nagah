@@ -10,11 +10,13 @@ class AuthCubit extends Cubit<AuthState> {
     required RequestPasswordResetUseCase requestPasswordResetUseCase,
     required VerifyOtpUseCase verifyOtpUseCase,
     required ResetPasswordUseCase resetPasswordUseCase,
+    required ResendOtpUseCase resendOtpUseCase,
   }) : _loginUseCase = loginUseCase,
        _registerUseCase = registerUseCase,
        _requestPasswordResetUseCase = requestPasswordResetUseCase,
        _verifyOtpUseCase = verifyOtpUseCase,
        _resetPasswordUseCase = resetPasswordUseCase,
+       _resendOtpUseCase = resendOtpUseCase,
        super(const AuthState());
 
   final LoginUseCase _loginUseCase;
@@ -22,6 +24,9 @@ class AuthCubit extends Cubit<AuthState> {
   final RequestPasswordResetUseCase _requestPasswordResetUseCase;
   final VerifyOtpUseCase _verifyOtpUseCase;
   final ResetPasswordUseCase _resetPasswordUseCase;
+  final ResendOtpUseCase _resendOtpUseCase;
+  String? _pendingRegistrationEmail;
+  String? _pendingRegistrationPassword;
 
   void goToLogin() {
     emit(
@@ -99,9 +104,12 @@ class AuthCubit extends Cubit<AuthState> {
           status: AuthStatus.success,
           stage: AuthStage.otp,
           otpSession: session,
+          clearAuthenticatedUser: true,
           message: 'Account created. Verify the OTP code to continue.',
         ),
       );
+      _pendingRegistrationEmail = email.trim().toLowerCase();
+      _pendingRegistrationPassword = password;
     } catch (error) {
       emit(
         state.copyWith(
@@ -124,7 +132,8 @@ class AuthCubit extends Cubit<AuthState> {
           status: AuthStatus.success,
           stage: AuthStage.otp,
           otpSession: session,
-          message: 'OTP was sent. Use the mock code to continue.',
+          clearAuthenticatedUser: true,
+          message: 'OTP was sent successfully.',
         ),
       );
     } catch (error) {
@@ -156,20 +165,35 @@ class AuthCubit extends Cubit<AuthState> {
         VerifyOtpParams(sessionId: session.sessionId, code: code),
       );
 
-      if (verifiedSession.purpose == OtpPurpose.register) {
+      if (session.purpose == OtpPurpose.register) {
+        final email = _pendingRegistrationEmail ?? verifiedSession.email;
+        final password = _pendingRegistrationPassword;
+        if (password == null || password.isEmpty) {
+          emit(
+            state.copyWith(
+              status: AuthStatus.success,
+              stage: AuthStage.login,
+              otpSession: verifiedSession,
+              clearAuthenticatedUser: true,
+              message: 'Email verified successfully. Login to continue.',
+            ),
+          );
+          return;
+        }
+
+        final user = await _loginUseCase(
+          LoginParams(email: email, password: password),
+        );
         emit(
           state.copyWith(
             status: AuthStatus.success,
-            authenticatedUser: AuthUser(
-              id: 'user-register',
-              name: 'New User',
-              email: verifiedSession.email,
-              role: UserRole.user,
-            ),
+            authenticatedUser: user,
             otpSession: verifiedSession,
-            message: 'Phone and email verified successfully.',
+            message: 'Account verified successfully.',
           ),
         );
+        _pendingRegistrationEmail = null;
+        _pendingRegistrationPassword = null;
       } else {
         emit(
           state.copyWith(
@@ -180,6 +204,32 @@ class AuthCubit extends Cubit<AuthState> {
           ),
         );
       }
+    } catch (error) {
+      emit(
+        state.copyWith(
+          status: AuthStatus.error,
+          errorMessage: error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
+    }
+  }
+
+  Future<void> resendOtp() async {
+    final session = state.otpSession;
+    if (session == null) {
+      return;
+    }
+
+    emit(state.copyWith(status: AuthStatus.loading, clearError: true));
+
+    try {
+      await _resendOtpUseCase(session.email);
+      emit(
+        state.copyWith(
+          status: AuthStatus.success,
+          message: 'A new OTP code was sent successfully.',
+        ),
+      );
     } catch (error) {
       emit(
         state.copyWith(

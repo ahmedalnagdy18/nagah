@@ -45,7 +45,12 @@ class UpdateReportStatusUseCase {
   Future<HomeDashboard> call({
     required String reportId,
     required ReportStatus status,
+    String? adminNote,
   }) {
-    return _repository.updateReportStatus(reportId: reportId, status: status);
+    return _repository.updateReportStatus(
+      reportId: reportId,
+      status: status,
+      adminNote: adminNote,
+    );
   }
 }

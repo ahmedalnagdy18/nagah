@@ -46,3 +46,27 @@ class ResetPasswordUseCase {
     return _repository.resetPassword(params);
   }
 }
+
+class ResendOtpUseCase {
+  const ResendOtpUseCase(this._repository);
+
+  final AuthRepository _repository;
+
+  Future<void> call(String email) => _repository.resendOtp(email);
+}
+
+class RestoreSessionUseCase {
+  const RestoreSessionUseCase(this._repository);
+
+  final AuthRepository _repository;
+
+  Future<AuthUser?> call() => _repository.restoreSession();
+}
+
+class LogoutUseCase {
+  const LogoutUseCase(this._repository);
+
+  final AuthRepository _repository;
+
+  Future<void> call() => _repository.logout();
+}

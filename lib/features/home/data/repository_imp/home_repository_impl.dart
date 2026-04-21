@@ -43,10 +43,12 @@ class HomeRepositoryImpl implements HomeRepository {
   Future<HomeDashboard> updateReportStatus({
     required String reportId,
     required ReportStatus status,
+    String? adminNote,
   }) async {
     final model = await _remoteDataSource.updateReportStatus(
       reportId: reportId,
       status: status,
+      adminNote: adminNote,
     );
     return model.toEntity();
   }

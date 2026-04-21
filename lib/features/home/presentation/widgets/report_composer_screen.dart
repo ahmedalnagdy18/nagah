@@ -10,11 +10,13 @@ class ReportComposerScreen extends StatefulWidget {
     super.key,
     required this.roads,
     required this.selectedLocation,
+    required this.onLogout,
     required this.onSubmit,
   });
 
   final List<RoadSegment> roads;
   final LocationPoint selectedLocation;
+  final VoidCallback onLogout;
   final void Function({
     required String? roadId,
     required IssueType issueType,
@@ -56,6 +58,13 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF5F7FB),
         title: const Text('Create report'),
+        actions: [
+          IconButton(
+            onPressed: widget.onLogout,
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -151,7 +160,7 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: const Text(
-                      'No roads were loaded from the backend yet. You can still send the report using the picked map location.',
+                      'No real roads were loaded from Supabase yet. The report will still be sent, but without linking it to a specific road.',
                     ),
                   ),
                 const SizedBox(height: 8),

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nagah/core/network/supabase_rest_client.dart';
+import 'package:nagah/features/auth/data/data_source/auth_remote_data_source.dart';
+import 'package:nagah/features/auth/data/data_source/auth_session_local_data_source.dart';
+import 'package:nagah/features/auth/data/repository_imp/auth_repository_impl.dart';
+import 'package:nagah/features/auth/domain/usecase/auth_usecases.dart';
+import 'package:nagah/features/auth/presentation/screens/auth_flow_page.dart';
 import 'package:nagah/features/home/data/data_source/home_remote_data_source.dart';
 import 'package:nagah/features/home/data/repository_imp/home_repository_impl.dart';
 import 'package:nagah/features/home/domain/usecase/home_usecases.dart';
@@ -15,8 +20,9 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sessionLocalDataSource = AuthSessionLocalDataSource();
     final repository = HomeRepositoryImpl(
-      HomeRemoteDataSource(SupabaseRestClient()),
+      HomeRemoteDataSource(SupabaseRestClient(), sessionLocalDataSource),
     );
 
     return BlocProvider(
@@ -27,13 +33,15 @@ class HomePage extends StatelessWidget {
         submitReportUseCase: SubmitReportUseCase(repository),
         updateReportStatusUseCase: UpdateReportStatusUseCase(repository),
       )..initialize(),
-      child: const _HomeView(),
+      child: _HomeView(sessionLocalDataSource: sessionLocalDataSource),
     );
   }
 }
 
 class _HomeView extends StatelessWidget {
-  const _HomeView();
+  const _HomeView({required this.sessionLocalDataSource});
+
+  final AuthSessionLocalDataSource sessionLocalDataSource;
 
   @override
   Widget build(BuildContext context) {
@@ -65,6 +73,12 @@ class _HomeView extends StatelessWidget {
 
         final dashboard = state.dashboard!;
         final cubit = context.read<HomeCubit>();
+        final logoutUseCase = LogoutUseCase(
+          AuthRepositoryImpl(
+            AuthRemoteDataSource(SupabaseRestClient()),
+            sessionLocalDataSource,
+          ),
+        );
 
         final pages = [
           MapPage(
@@ -75,11 +89,15 @@ class _HomeView extends StatelessWidget {
             onLocationSelected: cubit.selectMapLocation,
             onCreateReportTap: cubit.openReportComposer,
             onRecenterTap: cubit.recenterMap,
+            onLogoutTap: () => _logout(context, logoutUseCase),
           ),
           ReportComposerScreen(
-            roads: dashboard.roads,
+            roads: dashboard.roads
+                .where((road) => !road.id.startsWith('fallback-road-'))
+                .toList(),
             selectedLocation:
                 dashboard.selectedLocation ?? dashboard.currentLocation,
+            onLogout: () => _logout(context, logoutUseCase),
             onSubmit:
                 ({
                   required roadId,
@@ -96,9 +114,10 @@ class _HomeView extends StatelessWidget {
                 },
           ),
           MyReportsScreen(
-            reports: dashboard.reports,
+            reports: dashboard.myReports,
             roads: dashboard.roads,
             onRefresh: () => cubit.refreshDashboard(silent: true),
+            onLogout: () => _logout(context, logoutUseCase),
           ),
         ];
 
@@ -127,6 +146,21 @@ class _HomeView extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Future<void> _logout(
+    BuildContext context,
+    LogoutUseCase logoutUseCase,
+  ) async {
+    await logoutUseCase();
+    if (!context.mounted) {
+      return;
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const AuthFlowPage()),
+      (route) => false,
     );
   }
 }

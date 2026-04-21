@@ -9,12 +9,18 @@ class AdminReviewScreen extends StatelessWidget {
     super.key,
     required this.reports,
     required this.roads,
+    required this.onLogout,
     required this.onDecision,
   });
 
   final List<RoadIssueReport> reports;
   final List<RoadSegment> roads;
-  final void Function({required String reportId, required ReportStatus status})
+  final VoidCallback onLogout;
+  final void Function({
+    required String reportId,
+    required ReportStatus status,
+    String? adminNote,
+  })
   onDecision;
 
   @override
@@ -28,6 +34,13 @@ class AdminReviewScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFFF5F7FB),
         title: const Text('Admin review'),
+        actions: [
+          IconButton(
+            onPressed: onLogout,
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: 'Logout',
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -108,18 +121,35 @@ class AdminReviewScreen extends StatelessWidget {
                       ),
                       if (report.imageLabel != null) ...[
                         const SizedBox(height: 10),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF9FAFB),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.image_outlined),
-                              const SizedBox(width: 8),
-                              Text(report.imageLabel!),
-                            ],
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: Image.network(
+                            report.imageLabel!,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFF9FAFB),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.broken_image_outlined),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        report.imageLabel!,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ),
                       ],
@@ -128,10 +158,7 @@ class AdminReviewScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: OutlinedButton(
-                              onPressed: () => onDecision(
-                                reportId: report.id,
-                                status: ReportStatus.rejected,
-                              ),
+                              onPressed: () => _handleReject(context, report.id),
                               child: const Text('Reject'),
                             ),
                           ),
@@ -168,5 +195,50 @@ class AdminReviewScreen extends StatelessWidget {
     }
 
     return 'Unknown road';
+  }
+
+  Future<void> _handleReject(BuildContext context, String reportId) async {
+    final noteController = TextEditingController();
+    final note = await showDialog<String>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Reject report'),
+          content: TextField(
+            controller: noteController,
+            maxLines: 3,
+            decoration: const InputDecoration(
+              hintText: 'Write the admin note for the rejection',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final note = noteController.text.trim();
+                if (note.isEmpty) {
+                  return;
+                }
+                Navigator.of(context).pop(note);
+              },
+              child: const Text('Reject'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (note == null || note.trim().isEmpty) {
+      return;
+    }
+
+    onDecision(
+      reportId: reportId,
+      status: ReportStatus.rejected,
+      adminNote: note,
+    );
   }
 }

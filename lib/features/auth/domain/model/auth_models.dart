@@ -16,12 +16,14 @@ class AuthUser {
     required this.name,
     required this.email,
     required this.role,
+    this.token,
   });
 
   final String id;
   final String name;
   final String email;
   final UserRole role;
+  final String? token;
 }
 
 class OtpSession {
@@ -29,13 +31,11 @@ class OtpSession {
     required this.sessionId,
     required this.email,
     required this.purpose,
-    required this.hintCode,
   });
 
   final String sessionId;
   final String email;
   final OtpPurpose purpose;
-  final String hintCode;
 }
 
 class LoginParams {

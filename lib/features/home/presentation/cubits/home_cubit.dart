@@ -59,23 +59,33 @@ class HomeCubit extends Cubit<HomeState> {
     required String description,
     String? imagePath,
   }) async {
-    final dashboard = await _submitReportUseCase(
-      SubmitReportParams(
-        roadId: roadId,
-        issueType: issueType,
-        description: description,
-        imagePath: imagePath,
-      ),
-    );
-    print("${state.errorMessage} ddddddddddddddd");
-    emit(
-      state.copyWith(
-        dashboard: dashboard,
-        currentTab: 2,
-        message:
-            'Report saved as pending. It is ready for API submission later.',
-      ),
-    );
+    emit(state.copyWith(status: HomeViewStatus.loading, clearError: true));
+
+    try {
+      final dashboard = await _submitReportUseCase(
+        SubmitReportParams(
+          roadId: roadId,
+          issueType: issueType,
+          description: description,
+          imagePath: imagePath,
+        ),
+      );
+      emit(
+        state.copyWith(
+          status: HomeViewStatus.success,
+          dashboard: dashboard,
+          currentTab: 2,
+          message: 'Report sent successfully and is pending admin review.',
+        ),
+      );
+    } catch (error) {
+      emit(
+        state.copyWith(
+          status: HomeViewStatus.error,
+          errorMessage: error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
+    }
   }
 
   Future<void> refreshDashboard({bool silent = false}) async {
@@ -92,11 +102,11 @@ class HomeCubit extends Cubit<HomeState> {
           clearError: true,
         ),
       );
-    } catch (_) {
+    } catch (error) {
       emit(
         state.copyWith(
           status: HomeViewStatus.error,
-          errorMessage: 'Failed to load home data.',
+          errorMessage: error.toString().replaceFirst('Exception: ', ''),
         ),
       );
     }
@@ -105,20 +115,34 @@ class HomeCubit extends Cubit<HomeState> {
   Future<void> updateReportStatus({
     required String reportId,
     required ReportStatus status,
+    String? adminNote,
   }) async {
-    final dashboard = await _updateReportStatusUseCase(
-      reportId: reportId,
-      status: status,
-    );
+    emit(state.copyWith(status: HomeViewStatus.loading, clearError: true));
 
-    emit(
-      state.copyWith(
-        dashboard: dashboard,
-        message: status == ReportStatus.approved
-            ? 'Report approved and the map risk was updated.'
-            : 'Report rejected successfully.',
-      ),
-    );
+    try {
+      final dashboard = await _updateReportStatusUseCase(
+        reportId: reportId,
+        status: status,
+        adminNote: adminNote,
+      );
+
+      emit(
+        state.copyWith(
+          status: HomeViewStatus.success,
+          dashboard: dashboard,
+          message: status == ReportStatus.approved
+              ? 'Report approved and the map risk was updated.'
+              : 'Report rejected successfully.',
+        ),
+      );
+    } catch (error) {
+      emit(
+        state.copyWith(
+          status: HomeViewStatus.error,
+          errorMessage: error.toString().replaceFirst('Exception: ', ''),
+        ),
+      );
+    }
   }
 
   void clearMessage() {

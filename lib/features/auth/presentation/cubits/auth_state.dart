@@ -30,12 +30,15 @@ class AuthState extends Equatable {
     bool clearMessage = false,
     bool clearError = false,
     bool clearOtpSession = false,
+    bool clearAuthenticatedUser = false,
   }) {
     return AuthState(
       status: status ?? this.status,
       stage: stage ?? this.stage,
       otpSession: clearOtpSession ? null : (otpSession ?? this.otpSession),
-      authenticatedUser: authenticatedUser ?? this.authenticatedUser,
+      authenticatedUser: clearAuthenticatedUser
+          ? null
+          : (authenticatedUser ?? this.authenticatedUser),
       message: clearMessage ? null : (message ?? this.message),
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );

@@ -13,6 +13,7 @@ class MapPage extends StatelessWidget {
     required this.onLocationSelected,
     required this.onCreateReportTap,
     required this.onRecenterTap,
+    required this.onLogoutTap,
   });
 
   final List<RoadSegment> roads;
@@ -22,6 +23,7 @@ class MapPage extends StatelessWidget {
   final ValueChanged<LocationPoint> onLocationSelected;
   final VoidCallback onCreateReportTap;
   final VoidCallback onRecenterTap;
+  final VoidCallback onLogoutTap;
 
   @override
   Widget build(BuildContext context) {
@@ -135,16 +137,27 @@ class MapPage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Road risk map',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.w800,
-                          ),
+                        Row(
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Road risk map',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              onPressed: onLogoutTap,
+                              icon: const Icon(Icons.logout_rounded),
+                              tooltip: 'Logout',
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Green roads are safer, orange roads need caution, and red roads are high risk after approved reports.',
+                          'Approved accident reports appear on the map for everyone after admin review.',
                           style: TextStyle(
                             height: 1.4,
                             color: Color(0xFF4B5563),

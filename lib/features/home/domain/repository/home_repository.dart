@@ -8,5 +8,6 @@ abstract class HomeRepository {
   Future<HomeDashboard> updateReportStatus({
     required String reportId,
     required ReportStatus status,
+    String? adminNote,
   });
 }

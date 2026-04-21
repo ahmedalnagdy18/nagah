@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
-import 'package:nagah/features/onboarding/screens/onboarding_page.dart';
+import 'package:nagah/features/auth/presentation/screens/app_entry_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -31,7 +31,7 @@ class MyApp extends StatelessWidget {
           scaffoldBackgroundColor: Colors.white,
           useMaterial3: true,
         ),
-        home: const OnboardingPage(),
+        home: const AppEntryPage(),
       ),
     );
   }

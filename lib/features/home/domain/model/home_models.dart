@@ -77,6 +77,7 @@ class RoadSegment {
 class RoadIssueReport {
   const RoadIssueReport({
     required this.id,
+    required this.userId,
     required this.roadId,
     required this.issueType,
     required this.description,
@@ -89,6 +90,7 @@ class RoadIssueReport {
   });
 
   final String id;
+  final String userId;
   final String roadId;
   final IssueType issueType;
   final String description;
@@ -101,6 +103,7 @@ class RoadIssueReport {
 
   RoadIssueReport copyWith({
     String? id,
+    String? userId,
     String? roadId,
     IssueType? issueType,
     String? description,
@@ -113,6 +116,7 @@ class RoadIssueReport {
   }) {
     return RoadIssueReport(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       roadId: roadId ?? this.roadId,
       issueType: issueType ?? this.issueType,
       description: description ?? this.description,
@@ -132,12 +136,14 @@ class HomeDashboard {
     required this.selectedLocation,
     required this.roads,
     required this.reports,
+    required this.myReports,
   });
 
   final LocationPoint currentLocation;
   final LocationPoint? selectedLocation;
   final List<RoadSegment> roads;
   final List<RoadIssueReport> reports;
+  final List<RoadIssueReport> myReports;
 
   List<RoadIssueReport> get approvedReports => reports
       .where((report) => report.status == ReportStatus.approved)
@@ -148,12 +154,14 @@ class HomeDashboard {
     LocationPoint? selectedLocation,
     List<RoadSegment>? roads,
     List<RoadIssueReport>? reports,
+    List<RoadIssueReport>? myReports,
   }) {
     return HomeDashboard(
       currentLocation: currentLocation ?? this.currentLocation,
       selectedLocation: selectedLocation ?? this.selectedLocation,
       roads: roads ?? this.roads,
       reports: reports ?? this.reports,
+      myReports: myReports ?? this.myReports,
     );
   }
 }

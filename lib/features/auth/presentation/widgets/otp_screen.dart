@@ -11,12 +11,14 @@ class OtpScreen extends StatefulWidget {
     required this.isLoading,
     required this.session,
     required this.onVerify,
+    required this.onResend,
     required this.onBack,
   });
 
   final bool isLoading;
   final OtpSession session;
   final void Function({required String code}) onVerify;
+  final VoidCallback onResend;
   final VoidCallback onBack;
 
   @override
@@ -92,6 +94,14 @@ class _OtpScreenState extends State<OtpScreen> {
             onPressed: () {
               widget.onVerify(code: _otpController.text.trim());
             },
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: widget.isLoading ? null : widget.onResend,
+              child: const Text('Resend OTP'),
+            ),
           ),
         ],
       ),

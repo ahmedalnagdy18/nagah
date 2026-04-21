@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nagah/core/network/supabase_rest_client.dart';
 import 'package:nagah/features/auth/data/data_source/auth_remote_data_source.dart';
+import 'package:nagah/features/auth/data/data_source/auth_session_local_data_source.dart';
 import 'package:nagah/features/auth/data/repository_imp/auth_repository_impl.dart';
 import 'package:nagah/features/auth/domain/model/auth_models.dart';
 import 'package:nagah/features/auth/domain/usecase/auth_usecases.dart';
@@ -22,6 +23,7 @@ class AuthFlowPage extends StatelessWidget {
   Widget build(BuildContext context) {
     final repository = AuthRepositoryImpl(
       AuthRemoteDataSource(SupabaseRestClient()),
+      AuthSessionLocalDataSource(),
     );
 
     return BlocProvider(
@@ -31,6 +33,7 @@ class AuthFlowPage extends StatelessWidget {
         requestPasswordResetUseCase: RequestPasswordResetUseCase(repository),
         verifyOtpUseCase: VerifyOtpUseCase(repository),
         resetPasswordUseCase: ResetPasswordUseCase(repository),
+        resendOtpUseCase: ResendOtpUseCase(repository),
       ),
       child: const _AuthView(),
     );
@@ -116,6 +119,7 @@ class _AuthView extends StatelessWidget {
             onVerify: ({required code}) {
               cubit.verifyOtp(code: code);
             },
+            onResend: cubit.resendOtp,
             onBack: () {
               if (state.otpSession?.purpose == OtpPurpose.register) {
                 cubit.goToRegister();

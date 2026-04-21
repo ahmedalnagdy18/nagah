@@ -63,6 +63,7 @@ class RoadSegmentModel {
 class RoadIssueReportModel {
   const RoadIssueReportModel({
     required this.id,
+    required this.userId,
     required this.roadId,
     required this.issueType,
     required this.description,
@@ -75,6 +76,7 @@ class RoadIssueReportModel {
   });
 
   final String id;
+  final String userId;
   final String roadId;
   final IssueType issueType;
   final String description;
@@ -88,6 +90,7 @@ class RoadIssueReportModel {
   RoadIssueReport toEntity() {
     return RoadIssueReport(
       id: id,
+      userId: userId,
       roadId: roadId,
       issueType: issueType,
       description: description,
@@ -102,6 +105,7 @@ class RoadIssueReportModel {
 
   RoadIssueReportModel copyWith({
     String? id,
+    String? userId,
     String? roadId,
     IssueType? issueType,
     String? description,
@@ -114,6 +118,7 @@ class RoadIssueReportModel {
   }) {
     return RoadIssueReportModel(
       id: id ?? this.id,
+      userId: userId ?? this.userId,
       roadId: roadId ?? this.roadId,
       issueType: issueType ?? this.issueType,
       description: description ?? this.description,
@@ -133,12 +138,14 @@ class HomeDashboardModel {
     required this.selectedLocation,
     required this.roads,
     required this.reports,
+    required this.myReports,
   });
 
   final LocationPointModel currentLocation;
   final LocationPointModel? selectedLocation;
   final List<RoadSegmentModel> roads;
   final List<RoadIssueReportModel> reports;
+  final List<RoadIssueReportModel> myReports;
 
   HomeDashboard toEntity() {
     return HomeDashboard(
@@ -146,6 +153,7 @@ class HomeDashboardModel {
       selectedLocation: selectedLocation?.toEntity(),
       roads: roads.map((road) => road.toEntity()).toList(),
       reports: reports.map((report) => report.toEntity()).toList(),
+      myReports: myReports.map((report) => report.toEntity()).toList(),
     );
   }
 
@@ -154,12 +162,14 @@ class HomeDashboardModel {
     LocationPointModel? selectedLocation,
     List<RoadSegmentModel>? roads,
     List<RoadIssueReportModel>? reports,
+    List<RoadIssueReportModel>? myReports,
   }) {
     return HomeDashboardModel(
       currentLocation: currentLocation ?? this.currentLocation,
       selectedLocation: selectedLocation ?? this.selectedLocation,
       roads: roads ?? this.roads,
       reports: reports ?? this.reports,
+      myReports: myReports ?? this.myReports,
     );
   }
 }

@@ -24,7 +24,14 @@ class AuthRemoteDataSource {
       throw Exception('Invalid email or password.');
     }
 
-    return _mapUser(users.first);
+    final user = users.first;
+    final isVerified = user['is_verified'] == true ||
+        user['is_verified']?.toString().toLowerCase() == 'true';
+    if (!isVerified) {
+      throw Exception('Email not verified. Please verify your OTP first.');
+    }
+
+    return _mapUser(user);
   }
 
   Future<OtpSessionModel> register(RegisterParams params) async {
@@ -64,17 +71,24 @@ class AuthRemoteDataSource {
       },
     );
 
-    final code = _mockOtpCode();
-    final otpRow = await _client.insert(
-      'otp',
+    final code = '123456';
+    await _client.insert(
+      'otp_sessions',
       body: {
+        'id': normalizedEmail,
         'email': normalizedEmail,
-        'code': code,
         'purpose': 'register',
+        'code': code,
+        'is_verified': false,
+        'expires_at': _buildOtpExpiry(),
       },
     );
 
-    return _mapOtp(otpRow ?? <String, dynamic>{}, fallbackCode: code);
+    return OtpSessionModel(
+      sessionId: normalizedEmail,
+      email: normalizedEmail,
+      purpose: OtpPurpose.register,
+    );
   }
 
   Future<OtpSessionModel> requestPasswordReset(
@@ -82,46 +96,128 @@ class AuthRemoteDataSource {
   ) async {
     _validateEmail(params.email);
 
-    final code = _mockOtpCode();
-    final otpRow = await _client.insert(
-      'otp',
-      body: {
-        'email': params.email.trim().toLowerCase(),
-        'code': code,
-        'purpose': 'reset_password',
+    final normalizedEmail = params.email.trim().toLowerCase();
+    final users = await _client.getList(
+      'users',
+      query: {
+        'select': 'id,email,phone',
+        'email': 'eq.$normalizedEmail',
       },
     );
 
-    return _mapOtp(otpRow ?? <String, dynamic>{}, fallbackCode: code);
+    if (users.isEmpty) {
+      throw Exception('No account found with this email.');
+    }
+
+    await _client.insert(
+      'otp_sessions',
+      body: {
+        'id': normalizedEmail,
+        'email': normalizedEmail,
+        'purpose': 'reset_password',
+        'code': '123456',
+        'is_verified': false,
+        'expires_at': _buildOtpExpiry(),
+      },
+    );
+
+    return OtpSessionModel(
+      sessionId: normalizedEmail,
+      email: normalizedEmail,
+      purpose: OtpPurpose.resetPassword,
+    );
   }
 
   Future<OtpSessionModel> verifyOtp(VerifyOtpParams params) async {
-    final rows = await _client.getList(
-      'otp',
+    final normalizedEmail = params.sessionId.trim().toLowerCase();
+    final users = await _client.getList(
+      'users',
       query: {
-        'select': '*',
-        'id': 'eq.${params.sessionId}',
-        'code': 'eq.${params.code.trim()}',
+        'select': 'id,email,phone',
+        'email': 'eq.$normalizedEmail',
       },
     );
 
-    if (rows.isEmpty) {
+    if (users.isEmpty) {
+      throw Exception('Account not found for OTP verification.');
+    }
+
+    final otpRows = await _client.getList(
+      'otp_sessions',
+      query: {
+        'select': '*',
+        'id': 'eq.$normalizedEmail',
+        'email': 'eq.$normalizedEmail',
+        'code': 'eq.${params.code.trim()}',
+        'is_verified': 'eq.false',
+        'limit': '1',
+      },
+    );
+
+    if (otpRows.isEmpty) {
       throw Exception('Invalid OTP code.');
     }
 
-    final row = rows.first;
-    final purpose = _parseOtpPurpose(row['purpose']?.toString());
-    final email = row['email']?.toString() ?? '';
-
-    if (purpose == OtpPurpose.register) {
-      await _client.update(
-        'users',
-        query: {'email': 'eq.$email'},
-        body: {'is_verified': true},
-      );
+    final expiresAt = DateTime.tryParse(
+      otpRows.first['expires_at']?.toString() ?? '',
+    );
+    if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) {
+      throw Exception('OTP code has expired. Please request a new one.');
     }
 
-    return _mapOtp(row, fallbackCode: params.code.trim());
+    await _client.update(
+      'otp_sessions',
+      query: {'id': 'eq.$normalizedEmail'},
+      body: {'is_verified': true},
+    );
+
+    await _client.update(
+      'users',
+      query: {'email': 'eq.$normalizedEmail'},
+      body: {'is_verified': true},
+    );
+
+    return OtpSessionModel(
+      sessionId: normalizedEmail,
+      email: normalizedEmail,
+      purpose: OtpPurpose.register,
+    );
+  }
+
+  Future<void> resendOtp(String email) async {
+    _validateEmail(email);
+
+    final normalizedEmail = email.trim().toLowerCase();
+    final users = await _client.getList(
+      'users',
+      query: {
+        'select': 'id,email,phone,is_verified',
+        'email': 'eq.$normalizedEmail',
+      },
+    );
+
+    if (users.isEmpty) {
+      throw Exception('User not found.');
+    }
+
+    final user = users.first;
+    final isVerified = user['is_verified'] == true ||
+        user['is_verified']?.toString().toLowerCase() == 'true';
+    if (isVerified) {
+      throw Exception('User already verified.');
+    }
+
+    await _client.insert(
+      'otp_sessions',
+      body: {
+        'id': normalizedEmail,
+        'email': normalizedEmail,
+        'purpose': 'register',
+        'code': '123456',
+        'is_verified': false,
+        'expires_at': _buildOtpExpiry(),
+      },
+    );
   }
 
   Future<AuthUserModel> resetPassword(ResetPasswordParams params) async {
@@ -130,28 +226,10 @@ class AuthRemoteDataSource {
     }
     _validatePassword(params.password);
 
-    final rows = await _client.getList(
-      'otp',
-      query: {
-        'select': '*',
-        'id': 'eq.${params.sessionId}',
-      },
-    );
-
-    if (rows.isEmpty) {
-      throw Exception('Reset session not found.');
-    }
-
-    final otpRow = rows.first;
-    final email = otpRow['email']?.toString();
-
-    if (email == null || email.isEmpty) {
-      throw Exception('Reset session email is missing.');
-    }
-
+    final normalizedEmail = params.sessionId.trim().toLowerCase();
     final updatedUsers = await _client.update(
       'users',
-      query: {'email': 'eq.$email'},
+      query: {'email': 'eq.$normalizedEmail'},
       body: {
         'password_hash': params.password.trim(),
         'is_verified': true,
@@ -165,9 +243,25 @@ class AuthRemoteDataSource {
     return _mapUser(updatedUsers.first);
   }
 
+  Future<AuthUserModel> getCurrentUser(String userId) async {
+    final users = await _client.getList(
+      'users',
+      query: {
+        'select': '*',
+        'id': 'eq.$userId',
+        'limit': '1',
+      },
+    );
+
+    if (users.isEmpty) {
+      throw Exception('User session not found.');
+    }
+
+    return _mapUser(users.first);
+  }
+
   AuthUserModel _mapUser(Map<String, dynamic> json) {
-    final isAdmin =
-        json['is_admin'] == true ||
+    final isAdmin = json['is_admin'] == true ||
         json['is_admin']?.toString().toLowerCase() == 'true';
 
     return AuthUserModel(
@@ -178,30 +272,8 @@ class AuthRemoteDataSource {
           'Nagah User',
       email: json['email']?.toString() ?? '',
       role: isAdmin ? UserRole.admin : UserRole.user,
+      token: json['id']?.toString(),
     );
-  }
-
-  OtpSessionModel _mapOtp(
-    Map<String, dynamic> json, {
-    required String fallbackCode,
-  }) {
-    return OtpSessionModel(
-      sessionId: json['id']?.toString() ?? '',
-      email: json['email']?.toString() ?? '',
-      purpose: _parseOtpPurpose(json['purpose']?.toString()),
-      hintCode: json['code']?.toString() ?? fallbackCode,
-    );
-  }
-
-  OtpPurpose _parseOtpPurpose(String? purpose) {
-    return purpose == 'register'
-        ? OtpPurpose.register
-        : OtpPurpose.resetPassword;
-  }
-
-  String _mockOtpCode() {
-    // Keep a stable code for the current frontend UX and backend tests.
-    return '1234';
   }
 
   void _validateEmail(String email) {
@@ -214,5 +286,9 @@ class AuthRemoteDataSource {
     if (password.trim().length < 6) {
       throw Exception('Password must be at least 6 characters.');
     }
+  }
+
+  String _buildOtpExpiry() {
+    return DateTime.now().toUtc().add(const Duration(minutes: 10)).toIso8601String();
   }
 }

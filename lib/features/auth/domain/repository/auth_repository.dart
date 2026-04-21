@@ -5,5 +5,8 @@ abstract class AuthRepository {
   Future<OtpSession> register(RegisterParams params);
   Future<OtpSession> requestPasswordReset(ForgotPasswordParams params);
   Future<OtpSession> verifyOtp(VerifyOtpParams params);
+  Future<void> resendOtp(String email);
   Future<AuthUser> resetPassword(ResetPasswordParams params);
+  Future<AuthUser?> restoreSession();
+  Future<void> logout();
 }
