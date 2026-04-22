@@ -3,7 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:nagah/features/home/domain/model/home_models.dart';
 import 'package:nagah/features/home/presentation/widgets/home_ui_extensions.dart';
 
-class MapPage extends StatelessWidget {
+class MapPage extends StatefulWidget {
   const MapPage({
     super.key,
     required this.roads,
@@ -26,8 +26,40 @@ class MapPage extends StatelessWidget {
   final VoidCallback onLogoutTap;
 
   @override
+  State<MapPage> createState() => _MapPageState();
+}
+
+class _MapPageState extends State<MapPage> {
+  late final MapController _mapController;
+
+  @override
+  void initState() {
+    super.initState();
+    _mapController = MapController();
+  }
+
+  @override
+  void didUpdateWidget(covariant MapPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    final currentChanged =
+        oldWidget.currentLocation.latitude != widget.currentLocation.latitude ||
+        oldWidget.currentLocation.longitude !=
+            widget.currentLocation.longitude;
+
+    if (currentChanged) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        _mapController.move(widget.currentLocation.toLatLng(), 14);
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final incidentSummaries = _buildIncidentSummaries(approvedReports);
+    final incidentSummaries = _buildIncidentSummaries(widget.approvedReports);
 
     final reportCircles = incidentSummaries
         .map(
@@ -53,7 +85,7 @@ class MapPage extends StatelessWidget {
         )
         .toList();
 
-    final roadPolylines = roads
+    final roadPolylines = widget.roads
         .map(
           (road) => Polyline(
             points: road.points.map((point) => point.toLatLng()).toList(),
@@ -67,10 +99,11 @@ class MapPage extends StatelessWidget {
       body: Stack(
         children: [
           FlutterMap(
+            mapController: _mapController,
             options: MapOptions(
-              initialCenter: currentLocation.toLatLng(),
+              initialCenter: widget.currentLocation.toLatLng(),
               initialZoom: 14,
-              onTap: (_, point) => onLocationSelected(
+              onTap: (_, point) => widget.onLocationSelected(
                 LocationPoint(
                   latitude: point.latitude,
                   longitude: point.longitude,
@@ -88,7 +121,7 @@ class MapPage extends StatelessWidget {
                 markers: [
                   ...reportMarkers,
                   Marker(
-                    point: currentLocation.toLatLng(),
+                    point: widget.currentLocation.toLatLng(),
                     width: 70,
                     height: 78,
                     child: const _SimpleMarker(
@@ -97,9 +130,9 @@ class MapPage extends StatelessWidget {
                       label: 'You',
                     ),
                   ),
-                  if (selectedLocation != null)
+                  if (widget.selectedLocation != null)
                     Marker(
-                      point: selectedLocation!.toLatLng(),
+                      point: widget.selectedLocation!.toLatLng(),
                       width: 78,
                       height: 84,
                       child: const _SimpleMarker(
@@ -151,7 +184,7 @@ class MapPage extends StatelessWidget {
                               ),
                             ),
                             IconButton(
-                              onPressed: onLogoutTap,
+                              onPressed: widget.onLogoutTap,
                               icon: const Icon(Icons.logout_rounded),
                               tooltip: 'Logout',
                             ),
@@ -200,9 +233,9 @@ class MapPage extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          selectedLocation == null
+                          widget.selectedLocation == null
                               ? 'Tap any road to pick a report location.'
-                              : 'Selected point: ${selectedLocation!.latitude.toStringAsFixed(5)}, ${selectedLocation!.longitude.toStringAsFixed(5)}',
+                              : 'Selected point: ${widget.selectedLocation!.latitude.toStringAsFixed(5)}, ${widget.selectedLocation!.longitude.toStringAsFixed(5)}',
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 12),
@@ -210,11 +243,11 @@ class MapPage extends StatelessWidget {
                           height: 72,
                           child: ListView.separated(
                             scrollDirection: Axis.horizontal,
-                            itemCount: roads.length,
+                            itemCount: widget.roads.length,
                             separatorBuilder: (_, _) =>
                                 const SizedBox(width: 12),
                             itemBuilder: (context, index) {
-                              final road = roads[index];
+                              final road = widget.roads[index];
                               return Container(
                                 width: 170,
                                 padding: const EdgeInsets.all(14),
@@ -253,7 +286,7 @@ class MapPage extends StatelessWidget {
                           children: [
                             Expanded(
                               child: OutlinedButton.icon(
-                                onPressed: onRecenterTap,
+                                onPressed: widget.onRecenterTap,
                                 style: OutlinedButton.styleFrom(
                                   padding: const EdgeInsets.symmetric(
                                     vertical: 16,
@@ -269,7 +302,7 @@ class MapPage extends StatelessWidget {
                             const SizedBox(width: 12),
                             Expanded(
                               child: FilledButton.icon(
-                                onPressed: onCreateReportTap,
+                                onPressed: widget.onCreateReportTap,
                                 style: FilledButton.styleFrom(
                                   backgroundColor: const Color(0xFFDC2626),
                                   padding: const EdgeInsets.symmetric(

@@ -1,3 +1,4 @@
+import 'package:geolocator/geolocator.dart';
 import 'package:nagah/core/network/supabase_rest_client.dart';
 import 'package:nagah/features/auth/data/data_source/auth_session_local_data_source.dart';
 import 'package:nagah/features/auth/data/model/auth_models.dart';
@@ -6,16 +7,17 @@ import 'package:nagah/features/home/domain/model/home_models.dart';
 
 class HomeRemoteDataSource {
   static const String _fallbackRoadPrefix = 'fallback-road-';
+  static const LocationPointModel _fallbackLocation = LocationPointModel(
+    latitude: 30.0444,
+    longitude: 31.2357,
+  );
 
   HomeRemoteDataSource(this._client, this._sessionLocalDataSource)
-    : _currentLocation = const LocationPointModel(
-        latitude: 30.0444,
-        longitude: 31.2357,
-      );
+    : _currentLocation = _fallbackLocation;
 
   final SupabaseRestClient _client;
   final AuthSessionLocalDataSource _sessionLocalDataSource;
-  final LocationPointModel _currentLocation;
+  LocationPointModel _currentLocation;
 
   LocationPointModel? _selectedLocation;
   List<RoadSegmentModel> _realRoads = const [];
@@ -25,6 +27,8 @@ class HomeRemoteDataSource {
 
   Future<HomeDashboardModel> getDashboard() async {
     final session = await _sessionLocalDataSource.getSession();
+    _currentLocation = await _getCurrentDeviceLocation();
+    _selectedLocation ??= _currentLocation;
 
     final roadRows = await _client.getList(
       'roads',
@@ -84,6 +88,7 @@ class HomeRemoteDataSource {
   }
 
   Future<HomeDashboardModel> recenterMap() async {
+    _currentLocation = await _getCurrentDeviceLocation();
     _selectedLocation = _currentLocation;
     return _buildDashboard();
   }
@@ -376,5 +381,37 @@ class HomeRemoteDataSource {
       throw Exception('Please login first to continue.');
     }
     return session;
+  }
+
+  Future<LocationPointModel> _getCurrentDeviceLocation() async {
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        return _currentLocation;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return _currentLocation;
+      }
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+
+      return LocationPointModel(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } catch (_) {
+      return _currentLocation;
+    }
   }
 }
