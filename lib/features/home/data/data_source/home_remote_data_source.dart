@@ -107,6 +107,8 @@ class HomeRemoteDataSource {
         'user_id': session.id,
         if (resolvedRoadId != null) 'road_id': resolvedRoadId,
         'description': '[${issueType.name}] ${description.trim()}',
+        'latitude': targetLocation.latitude,
+        'longitude': targetLocation.longitude,
         'status': 'pending',
         if (imagePath != null && imagePath.isNotEmpty) 'image_url': imagePath,
       },

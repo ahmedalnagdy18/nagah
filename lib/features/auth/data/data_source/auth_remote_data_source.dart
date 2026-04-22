@@ -35,20 +35,23 @@ class AuthRemoteDataSource {
   }
 
   Future<OtpSessionModel> register(RegisterParams params) async {
-    if (params.name.trim().length < 3) {
+    final normalizedName = params.name.trim();
+    final normalizedEmail = params.email.trim().toLowerCase();
+    final normalizedPhone = params.phone.trim();
+
+    if (normalizedName.length < 3) {
       throw Exception('Name must be at least 3 characters.');
     }
-    _validateEmail(params.email);
-    if (params.phone.trim().length < 11) {
+    _validateEmail(normalizedEmail);
+    if (normalizedPhone.length < 11) {
       throw Exception('Phone number looks too short.');
     }
     _validatePassword(params.password);
 
-    final normalizedEmail = params.email.trim().toLowerCase();
     final existingUsers = await _client.getList(
       'users',
       query: {
-        'select': 'id,email',
+        'select': 'id,email,phone',
         'email': 'eq.$normalizedEmail',
       },
     );
@@ -59,29 +62,26 @@ class AuthRemoteDataSource {
       );
     }
 
-    await _client.insert(
+    final existingPhoneUsers = await _client.getList(
       'users',
-      body: {
-        'email': normalizedEmail,
-        'phone': params.phone.trim(),
-        'password_hash': params.password.trim(),
-        'full_name': params.name.trim(),
-        'is_verified': false,
-        'is_admin': false,
+      query: {
+        'select': 'id,phone',
+        'phone': 'eq.$normalizedPhone',
       },
     );
 
+    if (existingPhoneUsers.isNotEmpty) {
+      throw Exception(
+        'This phone number is already registered. Please use another one.',
+      );
+    }
+
     final code = '123456';
-    await _client.insert(
-      'otp_sessions',
-      body: {
-        'id': normalizedEmail,
-        'email': normalizedEmail,
-        'purpose': 'register',
-        'code': code,
-        'is_verified': false,
-        'expires_at': _buildOtpExpiry(),
-      },
+    await _saveOtpSession(
+      sessionId: normalizedEmail,
+      email: normalizedEmail,
+      purpose: 'register',
+      code: code,
     );
 
     return OtpSessionModel(
@@ -109,16 +109,11 @@ class AuthRemoteDataSource {
       throw Exception('No account found with this email.');
     }
 
-    await _client.insert(
-      'otp_sessions',
-      body: {
-        'id': normalizedEmail,
-        'email': normalizedEmail,
-        'purpose': 'reset_password',
-        'code': '123456',
-        'is_verified': false,
-        'expires_at': _buildOtpExpiry(),
-      },
+    await _saveOtpSession(
+      sessionId: normalizedEmail,
+      email: normalizedEmail,
+      purpose: 'reset_password',
+      code: '123456',
     );
 
     return OtpSessionModel(
@@ -130,18 +125,6 @@ class AuthRemoteDataSource {
 
   Future<OtpSessionModel> verifyOtp(VerifyOtpParams params) async {
     final normalizedEmail = params.sessionId.trim().toLowerCase();
-    final users = await _client.getList(
-      'users',
-      query: {
-        'select': 'id,email,phone',
-        'email': 'eq.$normalizedEmail',
-      },
-    );
-
-    if (users.isEmpty) {
-      throw Exception('Account not found for OTP verification.');
-    }
-
     final otpRows = await _client.getList(
       'otp_sessions',
       query: {
@@ -158,10 +141,8 @@ class AuthRemoteDataSource {
       throw Exception('Invalid OTP code.');
     }
 
-    final expiresAt = DateTime.tryParse(
-      otpRows.first['expires_at']?.toString() ?? '',
-    );
-    if (expiresAt != null && expiresAt.isBefore(DateTime.now().toUtc())) {
+    final expiresAt = _parseOtpExpiry(otpRows.first['expires_at']?.toString());
+    if (expiresAt != null && expiresAt.isBefore(DateTime.now())) {
       throw Exception('OTP code has expired. Please request a new one.');
     }
 
@@ -171,16 +152,14 @@ class AuthRemoteDataSource {
       body: {'is_verified': true},
     );
 
-    await _client.update(
-      'users',
-      query: {'email': 'eq.$normalizedEmail'},
-      body: {'is_verified': true},
-    );
+    final purpose = otpRows.first['purpose']?.toString() == 'register'
+        ? OtpPurpose.register
+        : OtpPurpose.resetPassword;
 
     return OtpSessionModel(
       sessionId: normalizedEmail,
       email: normalizedEmail,
-      purpose: OtpPurpose.register,
+      purpose: purpose,
     );
   }
 
@@ -188,6 +167,25 @@ class AuthRemoteDataSource {
     _validateEmail(email);
 
     final normalizedEmail = email.trim().toLowerCase();
+    final existingSessions = await _client.getList(
+      'otp_sessions',
+      query: {
+        'select': 'id,email,purpose',
+        'id': 'eq.$normalizedEmail',
+        'limit': '1',
+      },
+    );
+
+    if (existingSessions.isNotEmpty) {
+      await _saveOtpSession(
+        sessionId: normalizedEmail,
+        email: normalizedEmail,
+        purpose: existingSessions.first['purpose']?.toString() ?? 'register',
+        code: '123456',
+      );
+      return;
+    }
+
     final users = await _client.getList(
       'users',
       query: {
@@ -207,16 +205,11 @@ class AuthRemoteDataSource {
       throw Exception('User already verified.');
     }
 
-    await _client.insert(
-      'otp_sessions',
-      body: {
-        'id': normalizedEmail,
-        'email': normalizedEmail,
-        'purpose': 'register',
-        'code': '123456',
-        'is_verified': false,
-        'expires_at': _buildOtpExpiry(),
-      },
+    await _saveOtpSession(
+      sessionId: normalizedEmail,
+      email: normalizedEmail,
+      purpose: 'register',
+      code: '123456',
     );
   }
 
@@ -289,6 +282,111 @@ class AuthRemoteDataSource {
   }
 
   String _buildOtpExpiry() {
-    return DateTime.now().toUtc().add(const Duration(minutes: 10)).toIso8601String();
+    return DateTime.now().add(const Duration(minutes: 10)).toIso8601String();
+  }
+
+  DateTime? _parseOtpExpiry(String? rawValue) {
+    if (rawValue == null || rawValue.trim().isEmpty) {
+      return null;
+    }
+
+    final parsed = DateTime.tryParse(rawValue.trim());
+    return parsed?.toLocal();
+  }
+
+  Future<void> completeRegistration({
+    required String name,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    final normalizedName = name.trim();
+    final normalizedEmail = email.trim().toLowerCase();
+    final normalizedPhone = phone.trim();
+
+    if (normalizedName.length < 3) {
+      throw Exception('Name must be at least 3 characters.');
+    }
+    _validateEmail(normalizedEmail);
+    if (normalizedPhone.length < 11) {
+      throw Exception('Phone number looks too short.');
+    }
+    _validatePassword(password);
+
+    final existingUsers = await _client.getList(
+      'users',
+      query: {
+        'select': 'id,email',
+        'email': 'eq.$normalizedEmail',
+        'limit': '1',
+      },
+    );
+
+    if (existingUsers.isNotEmpty) {
+      throw Exception('This email is already registered. Please log in instead.');
+    }
+
+    final existingPhoneUsers = await _client.getList(
+      'users',
+      query: {
+        'select': 'id,phone',
+        'phone': 'eq.$normalizedPhone',
+        'limit': '1',
+      },
+    );
+
+    if (existingPhoneUsers.isNotEmpty) {
+      throw Exception(
+        'This phone number is already registered. Please use another one.',
+      );
+    }
+
+    await _client.insert(
+      'users',
+      body: {
+        'email': normalizedEmail,
+        'phone': normalizedPhone,
+        'password_hash': password.trim(),
+        'full_name': normalizedName,
+        'is_verified': true,
+        'is_admin': false,
+      },
+    );
+  }
+
+  Future<void> _saveOtpSession({
+    required String sessionId,
+    required String email,
+    required String purpose,
+    required String code,
+  }) async {
+    final existingSessions = await _client.getList(
+      'otp_sessions',
+      query: {
+        'select': 'id',
+        'id': 'eq.$sessionId',
+        'limit': '1',
+      },
+    );
+
+    final body = {
+      'id': sessionId,
+      'email': email,
+      'purpose': purpose,
+      'code': code,
+      'is_verified': false,
+      'expires_at': _buildOtpExpiry(),
+    };
+
+    if (existingSessions.isEmpty) {
+      await _client.insert('otp_sessions', body: body);
+      return;
+    }
+
+    await _client.update(
+      'otp_sessions',
+      query: {'id': 'eq.$sessionId'},
+      body: body,
+    );
   }
 }

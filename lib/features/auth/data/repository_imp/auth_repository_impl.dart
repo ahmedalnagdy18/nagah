@@ -19,8 +19,19 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<OtpSession> register(RegisterParams params) async {
-    final session = await _remoteDataSource.register(params);
-    return session.toEntity();
+    await _sessionLocalDataSource.savePendingRegistration(
+      name: params.name,
+      email: params.email,
+      phone: params.phone,
+      password: params.password,
+    );
+    try {
+      final session = await _remoteDataSource.register(params);
+      return session.toEntity();
+    } catch (error) {
+      await _sessionLocalDataSource.clearPendingRegistration();
+      rethrow;
+    }
   }
 
   @override
@@ -32,6 +43,23 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<OtpSession> verifyOtp(VerifyOtpParams params) async {
     final session = await _remoteDataSource.verifyOtp(params);
+    if (session.purpose == OtpPurpose.register) {
+      final pendingRegistration =
+          await _sessionLocalDataSource.getPendingRegistration();
+      if (pendingRegistration == null) {
+        throw Exception(
+          'Registration session ended. Please register again to verify your account.',
+        );
+      }
+
+      await _remoteDataSource.completeRegistration(
+        name: pendingRegistration.name,
+        email: pendingRegistration.email,
+        phone: pendingRegistration.phone,
+        password: pendingRegistration.password,
+      );
+      await _sessionLocalDataSource.clearPendingRegistration();
+    }
     return session.toEntity();
   }
 
@@ -77,7 +105,8 @@ class AuthRepositoryImpl implements AuthRepository {
   }
 
   @override
-  Future<void> logout() {
-    return _sessionLocalDataSource.clearSession();
+  Future<void> logout() async {
+    await _sessionLocalDataSource.clearSession();
+    await _sessionLocalDataSource.clearPendingRegistration();
   }
 }

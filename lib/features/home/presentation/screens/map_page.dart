@@ -27,26 +27,28 @@ class MapPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reportCircles = approvedReports
+    final incidentSummaries = _buildIncidentSummaries(approvedReports);
+
+    final reportCircles = incidentSummaries
         .map(
-          (report) => CircleMarker(
-            point: report.location.toLatLng(),
-            radius: 55,
+          (summary) => CircleMarker(
+            point: summary.location.toLatLng(),
+            radius: 40 + (summary.count * 8),
             useRadiusInMeter: true,
-            color: report.issueType.color.withValues(alpha: 0.16),
-            borderColor: report.issueType.color,
+            color: summary.color.withValues(alpha: 0.18),
+            borderColor: summary.color,
             borderStrokeWidth: 2,
           ),
         )
         .toList();
 
-    final reportMarkers = approvedReports
+    final reportMarkers = incidentSummaries
         .map(
-          (report) => Marker(
-            point: report.location.toLatLng(),
-            width: 70,
-            height: 78,
-            child: _ReportMarker(report: report),
+          (summary) => Marker(
+            point: summary.location.toLatLng(),
+            width: 86,
+            height: 96,
+            child: _IncidentMarker(summary: summary),
           ),
         )
         .toList();
@@ -157,7 +159,7 @@ class MapPage extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         const Text(
-                          'Approved accident reports appear on the map for everyone after admin review.',
+                          'Approved reports are grouped into road incidents on the map. More approved reports make the hotspot stronger.',
                           style: TextStyle(
                             height: 1.4,
                             color: Color(0xFF4B5563),
@@ -326,19 +328,77 @@ class _LegendChip extends StatelessWidget {
   }
 }
 
-class _ReportMarker extends StatelessWidget {
-  const _ReportMarker({required this.report});
+class _IncidentSummary {
+  const _IncidentSummary({
+    required this.location,
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.icon,
+  });
 
-  final RoadIssueReport report;
+  final LocationPoint location;
+  final String label;
+  final int count;
+  final Color color;
+  final IconData icon;
+}
+
+class _IncidentMarker extends StatelessWidget {
+  const _IncidentMarker({required this.summary});
+
+  final _IncidentSummary summary;
 
   @override
   Widget build(BuildContext context) {
     return _SimpleMarker(
-      icon: report.issueType.icon,
-      color: report.issueType.color,
-      label: report.issueType.label,
+      icon: summary.icon,
+      color: summary.color,
+      label: '${summary.label} (${summary.count})',
     );
   }
+}
+
+List<_IncidentSummary> _buildIncidentSummaries(List<RoadIssueReport> reports) {
+  final grouped = <String, List<RoadIssueReport>>{};
+
+  for (final report in reports) {
+    final key = report.roadId.isEmpty
+        ? '${report.location.latitude},${report.location.longitude}'
+        : report.roadId;
+    grouped.putIfAbsent(key, () => []).add(report);
+  }
+
+  return grouped.values.map((items) {
+    final first = items.first;
+    final accidents = items
+        .where((report) => report.issueType == IssueType.accident)
+        .length;
+    final traffic = items
+        .where((report) => report.issueType == IssueType.traffic)
+        .length;
+    final potholes = items
+        .where((report) => report.issueType == IssueType.pothole)
+        .length;
+
+    final dominantType = () {
+      if (accidents >= traffic && accidents >= potholes) {
+        return IssueType.accident;
+      }
+      if (traffic >= potholes) {
+        return IssueType.traffic;
+      }
+      return IssueType.pothole;
+    }();
+
+    return _IncidentSummary(
+      location: first.location,
+      label: dominantType.label,
+      count: items.length,
+      color: dominantType.color,
+      icon: dominantType.icon,
+    );
+  }).toList();
 }
 
 class _SimpleMarker extends StatelessWidget {

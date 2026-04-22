@@ -65,3 +65,35 @@ class OtpSessionModel {
     );
   }
 }
+
+class PendingRegistrationModel {
+  const PendingRegistrationModel({
+    required this.name,
+    required this.email,
+    required this.phone,
+    required this.password,
+  });
+
+  final String name;
+  final String email;
+  final String phone;
+  final String password;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'password': password,
+    };
+  }
+
+  factory PendingRegistrationModel.fromJson(Map<String, dynamic> json) {
+    return PendingRegistrationModel(
+      name: json['name']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      phone: json['phone']?.toString() ?? '',
+      password: json['password']?.toString() ?? '',
+    );
+  }
+}
