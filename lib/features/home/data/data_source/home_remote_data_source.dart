@@ -11,6 +11,10 @@ class HomeRemoteDataSource {
     latitude: 30.0444,
     longitude: 31.2357,
   );
+  static const LocationPointModel _missingReportLocation = LocationPointModel(
+    latitude: 0,
+    longitude: 0,
+  );
 
   HomeRemoteDataSource(this._client, this._sessionLocalDataSource)
     : _currentLocation = _fallbackLocation;
@@ -203,7 +207,7 @@ class HomeRemoteDataSource {
       if (road != null && road.points.isNotEmpty) {
         return road.points[road.points.length ~/ 2];
       }
-      return _currentLocation;
+      return _missingReportLocation;
     }
 
     return LocationPointModel(latitude: lat, longitude: lng);

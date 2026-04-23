@@ -31,6 +31,7 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   late final MapController _mapController;
+  _ReportTimeFilter _timeFilter = _ReportTimeFilter.all;
 
   @override
   void initState() {
@@ -59,7 +60,11 @@ class _MapPageState extends State<MapPage> {
 
   @override
   Widget build(BuildContext context) {
-    final incidentSummaries = _buildIncidentSummaries(widget.approvedReports);
+    final filteredReports = _filterReportsByTime(
+      widget.approvedReports,
+      _timeFilter,
+    );
+    final incidentSummaries = _buildIncidentSummaries(filteredReports);
 
     final reportCircles = incidentSummaries
         .map(
@@ -202,6 +207,24 @@ class _MapPageState extends State<MapPage> {
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
+                          children: _ReportTimeFilter.values
+                              .map(
+                                (filter) => ChoiceChip(
+                                  label: Text(filter.label),
+                                  selected: _timeFilter == filter,
+                                  onSelected: (_) {
+                                    setState(() {
+                                      _timeFilter = filter;
+                                    });
+                                  },
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        const SizedBox(height: 14),
+                        Wrap(
+                          spacing: 10,
+                          runSpacing: 10,
                           children: RoadRiskLevel.values
                               .map(
                                 (level) => _LegendChip(
@@ -331,6 +354,16 @@ class _MapPageState extends State<MapPage> {
   }
 }
 
+enum _ReportTimeFilter { all, day, night }
+
+extension _ReportTimeFilterX on _ReportTimeFilter {
+  String get label => switch (this) {
+    _ReportTimeFilter.all => 'All',
+    _ReportTimeFilter.day => 'Day',
+    _ReportTimeFilter.night => 'Night',
+  };
+}
+
 class _LegendChip extends StatelessWidget {
   const _LegendChip({required this.label, required this.color});
 
@@ -396,6 +429,12 @@ List<_IncidentSummary> _buildIncidentSummaries(List<RoadIssueReport> reports) {
   final grouped = <String, List<RoadIssueReport>>{};
 
   for (final report in reports) {
+    final hasValidLocation =
+        report.location.latitude != 0 || report.location.longitude != 0;
+    if (!hasValidLocation) {
+      continue;
+    }
+
     final key = report.roadId.isEmpty
         ? '${report.location.latitude},${report.location.longitude}'
         : report.roadId;
@@ -431,6 +470,26 @@ List<_IncidentSummary> _buildIncidentSummaries(List<RoadIssueReport> reports) {
       color: dominantType.color,
       icon: dominantType.icon,
     );
+  }).toList();
+}
+
+List<RoadIssueReport> _filterReportsByTime(
+  List<RoadIssueReport> reports,
+  _ReportTimeFilter filter,
+) {
+  if (filter == _ReportTimeFilter.all) {
+    return reports;
+  }
+
+  return reports.where((report) {
+    final hour = report.createdAt.toLocal().hour;
+    final isDay = hour >= 6 && hour < 18;
+
+    return switch (filter) {
+      _ReportTimeFilter.all => true,
+      _ReportTimeFilter.day => isDay,
+      _ReportTimeFilter.night => !isDay,
+    };
   }).toList();
 }
 
