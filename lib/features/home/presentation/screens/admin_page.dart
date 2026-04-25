@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:nagah/core/network/supabase_rest_client.dart';
+import 'package:nagah/core/utils/report_pdf_export_service.dart';
 import 'package:nagah/features/auth/data/data_source/auth_remote_data_source.dart';
 import 'package:nagah/features/auth/data/data_source/auth_session_local_data_source.dart';
 import 'package:nagah/features/auth/data/repository_imp/auth_repository_impl.dart';
@@ -71,6 +72,7 @@ class _AdminView extends StatelessWidget {
 
         final dashboard = state.dashboard!;
         final cubit = context.read<HomeCubit>();
+        final pdfExportService = ReportPdfExportService();
         final logoutUseCase = LogoutUseCase(
           AuthRepositoryImpl(
             AuthRemoteDataSource(SupabaseRestClient()),
@@ -82,6 +84,10 @@ class _AdminView extends StatelessWidget {
           reports: dashboard.reports,
           roads: dashboard.roads,
           onLogout: () => _logout(context, logoutUseCase),
+          onExportPdf: () => pdfExportService.exportAdminReports(
+            reports: dashboard.reports,
+            roads: dashboard.roads,
+          ),
           onDecision: ({required reportId, required status, adminNote}) {
             cubit.updateReportStatus(
               reportId: reportId,

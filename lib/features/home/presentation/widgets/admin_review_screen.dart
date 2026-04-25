@@ -10,12 +10,14 @@ class AdminReviewScreen extends StatelessWidget {
     required this.reports,
     required this.roads,
     required this.onLogout,
+    required this.onExportPdf,
     required this.onDecision,
   });
 
   final List<RoadIssueReport> reports;
   final List<RoadSegment> roads;
   final VoidCallback onLogout;
+  final Future<void> Function() onExportPdf;
   final void Function({
     required String reportId,
     required ReportStatus status,
@@ -35,6 +37,26 @@ class AdminReviewScreen extends StatelessWidget {
         backgroundColor: const Color(0xFFF5F7FB),
         title: const Text('Admin review'),
         actions: [
+          IconButton(
+            onPressed: () async {
+              try {
+                await onExportPdf();
+              } catch (error) {
+                if (!context.mounted) {
+                  return;
+                }
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      error.toString().replaceFirst('Exception: ', ''),
+                    ),
+                  ),
+                );
+              }
+            },
+            icon: const Icon(Icons.picture_as_pdf_rounded),
+            tooltip: 'Export PDF',
+          ),
           IconButton(
             onPressed: onLogout,
             icon: const Icon(Icons.logout_rounded),

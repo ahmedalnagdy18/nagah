@@ -85,7 +85,10 @@ class _MapPageState extends State<MapPage> {
             point: summary.location.toLatLng(),
             width: 86,
             height: 96,
-            child: _IncidentMarker(summary: summary),
+            child: GestureDetector(
+              onTap: () => _showIncidentDetails(summary),
+              child: _IncidentMarker(summary: summary),
+            ),
           ),
         )
         .toList();
@@ -352,6 +355,156 @@ class _MapPageState extends State<MapPage> {
       ),
     );
   }
+
+  void _showIncidentDetails(_IncidentSummary summary) {
+    final stats = _buildDayNightStats(summary.reports);
+    final total = summary.reports.length;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: const Color(0xFF16161A),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: summary.color.withValues(alpha: 0.35),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: summary.color.withValues(alpha: 0.18),
+                  blurRadius: 30,
+                  offset: const Offset(0, 14),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: summary.color.withValues(alpha: 0.16),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Icon(summary.icon, color: summary.color, size: 24),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${summary.label} zone',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '$total approved reports in this area',
+                            style: const TextStyle(
+                              color: Color(0xFFA1A1AA),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        summary.color.withValues(alpha: 0.18),
+                        const Color(0xFF232329),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(22),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Day vs night distribution',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _TimeRatioBar(
+                        label: 'Day',
+                        count: stats.dayCount,
+                        total: total,
+                        color: const Color(0xFFF59E0B),
+                      ),
+                      const SizedBox(height: 14),
+                      _TimeRatioBar(
+                        label: 'Night',
+                        count: stats.nightCount,
+                        total: total,
+                        color: const Color(0xFF2563EB),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _StatCard(
+                        title: 'Day share',
+                        value: '${stats.dayPercent}%',
+                        accent: const Color(0xFFF59E0B),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _StatCard(
+                        title: 'Night share',
+                        value: '${stats.nightPercent}%',
+                        accent: const Color(0xFF2563EB),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Based on report submission time in this selected area.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 enum _ReportTimeFilter { all, day, night }
@@ -401,6 +554,7 @@ class _IncidentSummary {
     required this.count,
     required this.color,
     required this.icon,
+    required this.reports,
   });
 
   final LocationPoint location;
@@ -408,6 +562,7 @@ class _IncidentSummary {
   final int count;
   final Color color;
   final IconData icon;
+  final List<RoadIssueReport> reports;
 }
 
 class _IncidentMarker extends StatelessWidget {
@@ -469,6 +624,7 @@ List<_IncidentSummary> _buildIncidentSummaries(List<RoadIssueReport> reports) {
       count: items.length,
       color: dominantType.color,
       icon: dominantType.icon,
+      reports: items,
     );
   }).toList();
 }
@@ -491,6 +647,147 @@ List<RoadIssueReport> _filterReportsByTime(
       _ReportTimeFilter.night => !isDay,
     };
   }).toList();
+}
+
+class _DayNightStats {
+  const _DayNightStats({
+    required this.dayCount,
+    required this.nightCount,
+  });
+
+  final int dayCount;
+  final int nightCount;
+
+  int get total => dayCount + nightCount;
+
+  int get dayPercent => total == 0 ? 0 : ((dayCount / total) * 100).round();
+
+  int get nightPercent =>
+      total == 0 ? 0 : ((nightCount / total) * 100).round();
+}
+
+_DayNightStats _buildDayNightStats(List<RoadIssueReport> reports) {
+  var dayCount = 0;
+  var nightCount = 0;
+
+  for (final report in reports) {
+    final hour = report.createdAt.toLocal().hour;
+    if (hour >= 6 && hour < 18) {
+      dayCount++;
+    } else {
+      nightCount++;
+    }
+  }
+
+  return _DayNightStats(dayCount: dayCount, nightCount: nightCount);
+}
+
+class _TimeRatioBar extends StatelessWidget {
+  const _TimeRatioBar({
+    required this.label,
+    required this.count,
+    required this.total,
+    required this.color,
+  });
+
+  final String label;
+  final int count;
+  final int total;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = total == 0 ? 0.0 : count / total;
+    final percent = (ratio * 100).round();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '$count reports',
+              style: const TextStyle(
+                color: Color(0xFFA1A1AA),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$percent%',
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 12,
+            backgroundColor: Colors.white.withValues(alpha: 0.08),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.accent,
+  });
+
+  final String title;
+  final String value;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              color: Color(0xFFA1A1AA),
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            style: TextStyle(
+              color: accent,
+              fontSize: 24,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SimpleMarker extends StatelessWidget {
