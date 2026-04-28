@@ -86,7 +86,6 @@ class _AdminView extends StatelessWidget {
           onLogout: () => _logout(context, logoutUseCase),
           onExportPdf: () => pdfExportService.exportAdminReports(
             reports: dashboard.reports,
-            roads: dashboard.roads,
           ),
           onDecision: ({required reportId, required status, adminNote}) {
             cubit.updateReportStatus(

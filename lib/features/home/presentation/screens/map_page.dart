@@ -45,8 +45,7 @@ class _MapPageState extends State<MapPage> {
 
     final currentChanged =
         oldWidget.currentLocation.latitude != widget.currentLocation.latitude ||
-        oldWidget.currentLocation.longitude !=
-            widget.currentLocation.longitude;
+        oldWidget.currentLocation.longitude != widget.currentLocation.longitude;
 
     if (currentChanged) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -64,17 +63,28 @@ class _MapPageState extends State<MapPage> {
       widget.approvedReports,
       _timeFilter,
     );
-    final incidentSummaries = _buildIncidentSummaries(filteredReports);
+    final accidentZones = _buildAccidentZones(filteredReports);
+    final clusteredAccidentIds = accidentZones
+        .expand((zone) => zone.reports.map((report) => report.id))
+        .toSet();
+    final visibleReports = filteredReports
+        .where((report) => !clusteredAccidentIds.contains(report.id))
+        .toList();
+    final incidentSummaries = _buildIncidentSummaries(visibleReports);
 
-    final reportCircles = incidentSummaries
+    final accidentZoneMarkers = accidentZones
         .map(
-          (summary) => CircleMarker(
-            point: summary.location.toLatLng(),
-            radius: 40 + (summary.count * 8),
-            useRadiusInMeter: true,
-            color: summary.color.withValues(alpha: 0.18),
-            borderColor: summary.color,
-            borderStrokeWidth: 2,
+          (zone) => Marker(
+            point: zone.location.toLatLng(),
+            width: zone.markerSize,
+            height: zone.markerSize,
+            child: GestureDetector(
+              onTap: () {
+                widget.onLocationSelected(zone.location);
+                _showAccidentZoneDetails(zone);
+              },
+              child: _AccidentZoneMarker(zone: zone),
+            ),
           ),
         )
         .toList();
@@ -124,9 +134,9 @@ class _MapPageState extends State<MapPage> {
                 userAgentPackageName: 'com.example.nagah',
               ),
               PolylineLayer(polylines: roadPolylines),
-              CircleLayer(circles: reportCircles),
               MarkerLayer(
                 markers: [
+                  ...accidentZoneMarkers,
                   ...reportMarkers,
                   Marker(
                     point: widget.currentLocation.toLatLng(),
@@ -165,15 +175,19 @@ class _MapPageState extends State<MapPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(18),
+                    constraints: const BoxConstraints(maxWidth: 248),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(24),
+                      color: Colors.white.withValues(alpha: 0.92),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.08),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10),
+                          color: Colors.black.withValues(alpha: 0.12),
+                          blurRadius: 24,
+                          offset: const Offset(0, 12),
                         ),
                       ],
                     ),
@@ -198,24 +212,17 @@ class _MapPageState extends State<MapPage> {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        const Text(
-                          'Approved reports are grouped into road incidents on the map. More approved reports make the hotspot stronger.',
-                          style: TextStyle(
-                            height: 1.4,
-                            color: Color(0xFF4B5563),
-                          ),
-                        ),
-                        const SizedBox(height: 14),
+
+                        const SizedBox(height: 10),
                         Wrap(
                           spacing: 10,
                           runSpacing: 10,
                           children: _ReportTimeFilter.values
                               .map(
-                                (filter) => ChoiceChip(
-                                  label: Text(filter.label),
+                                (filter) => _TimeFilterChip(
+                                  label: filter.label,
                                   selected: _timeFilter == filter,
-                                  onSelected: (_) {
+                                  onTap: () {
                                     setState(() {
                                       _timeFilter = filter;
                                     });
@@ -224,19 +231,47 @@ class _MapPageState extends State<MapPage> {
                               )
                               .toList(),
                         ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 10,
-                          runSpacing: 10,
-                          children: RoadRiskLevel.values
-                              .map(
-                                (level) => _LegendChip(
-                                  label: level.label,
-                                  color: level.color,
-                                ),
-                              )
-                              .toList(),
+                        const SizedBox(height: 12),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: RoadRiskLevel.values
+                                .map(
+                                  (level) => Padding(
+                                    padding: const EdgeInsets.only(right: 8),
+                                    child: _LegendChip(
+                                      label: level.label,
+                                      color: level.color,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
                         ),
+                        if (accidentZones.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: const [
+                                _LegendChip(
+                                  label: '3+ accidents',
+                                  color: Color(0xFFEAB308),
+                                ),
+                                SizedBox(width: 8),
+                                _LegendChip(
+                                  label: '6+ accidents',
+                                  color: Color(0xFFF97316),
+                                ),
+                                SizedBox(width: 8),
+                                _LegendChip(
+                                  label: '8+ accidents',
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -265,49 +300,6 @@ class _MapPageState extends State<MapPage> {
                           style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 12),
-                        SizedBox(
-                          height: 72,
-                          child: ListView.separated(
-                            scrollDirection: Axis.horizontal,
-                            itemCount: widget.roads.length,
-                            separatorBuilder: (_, _) =>
-                                const SizedBox(width: 12),
-                            itemBuilder: (context, index) {
-                              final road = widget.roads[index];
-                              return Container(
-                                width: 170,
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: road.riskLevel.color.withValues(
-                                    alpha: 0.1,
-                                  ),
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      road.name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                    const Spacer(),
-                                    Text(
-                                      '${road.riskLevel.label} risk',
-                                      style: TextStyle(
-                                        color: road.riskLevel.color,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                        const SizedBox(height: 14),
                         Row(
                           children: [
                             Expanded(
@@ -422,7 +414,10 @@ class _MapPageState extends State<MapPage> {
                     ),
                     IconButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded, color: Colors.white),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                      ),
                     ),
                   ],
                 ),
@@ -505,6 +500,108 @@ class _MapPageState extends State<MapPage> {
       },
     );
   }
+
+  void _showAccidentZoneDetails(_AccidentZoneSummary zone) {
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+          child: Container(
+            padding: const EdgeInsets.all(22),
+            decoration: BoxDecoration(
+              color: const Color(0xFF16161A),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: zone.color.withValues(alpha: 0.45)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      width: 18,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: zone.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Text(
+                        'Accident cluster',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  '${zone.count} accidents were reported in this nearby area.',
+                  style: const TextStyle(
+                    color: Color(0xFFD4D4D8),
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: zone.color.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'Severity level: ${zone.severityLabel}',
+                    style: TextStyle(
+                      color: zone.color,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      widget.onLocationSelected(zone.location);
+                      widget.onCreateReportTap();
+                    },
+                    style: FilledButton.styleFrom(
+                      backgroundColor: zone.color,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                    ),
+                    icon: const Icon(Icons.add_road_rounded),
+                    label: const Text('Report here'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 enum _ReportTimeFilter { all, day, night }
@@ -517,6 +614,52 @@ extension _ReportTimeFilterX on _ReportTimeFilter {
   };
 }
 
+class _TimeFilterChip extends StatelessWidget {
+  const _TimeFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF111827) : const Color(0xFFF3F4F6),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: selected ? const Color(0xFF111827) : const Color(0xFFE5E7EB),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (selected) ...[
+              const Icon(Icons.check_rounded, size: 16, color: Colors.white),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.white : const Color(0xFF4B5563),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _LegendChip extends StatelessWidget {
   const _LegendChip({required this.label, required this.color});
 
@@ -526,10 +669,11 @@ class _LegendChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: const Color(0xFFF8FAFC),
         borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -540,7 +684,13 @@ class _LegendChip extends StatelessWidget {
             decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 8),
-          Text(label),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -563,6 +713,28 @@ class _IncidentSummary {
   final Color color;
   final IconData icon;
   final List<RoadIssueReport> reports;
+}
+
+class _AccidentZoneSummary {
+  const _AccidentZoneSummary({
+    required this.location,
+    required this.count,
+    required this.color,
+    required this.markerSize,
+    required this.reports,
+  });
+
+  final LocationPoint location;
+  final int count;
+  final Color color;
+  final double markerSize;
+  final List<RoadIssueReport> reports;
+
+  String get severityLabel => switch (count) {
+    >= 8 => 'High',
+    >= 6 => 'Medium high',
+    _ => 'Warning',
+  };
 }
 
 class _IncidentMarker extends StatelessWidget {
@@ -649,6 +821,64 @@ List<RoadIssueReport> _filterReportsByTime(
   }).toList();
 }
 
+List<_AccidentZoneSummary> _buildAccidentZones(List<RoadIssueReport> reports) {
+  const areaThreshold = 0.008;
+  final accidentReports = reports.where((report) {
+    final hasValidLocation =
+        report.location.latitude != 0 || report.location.longitude != 0;
+    return hasValidLocation && report.issueType == IssueType.accident;
+  }).toList();
+
+  final zones = <List<RoadIssueReport>>[];
+
+  for (final report in accidentReports) {
+    List<RoadIssueReport>? targetZone;
+
+    for (final zone in zones) {
+      final anchor = zone.first.location;
+      final distance =
+          (anchor.latitude - report.location.latitude).abs() +
+          (anchor.longitude - report.location.longitude).abs();
+      if (distance <= areaThreshold) {
+        targetZone = zone;
+        break;
+      }
+    }
+
+    if (targetZone == null) {
+      zones.add([report]);
+    } else {
+      targetZone.add(report);
+    }
+  }
+
+  return zones.where((zone) => zone.length >= 3).map((zone) {
+    final latitude =
+        zone.map((item) => item.location.latitude).reduce((a, b) => a + b) /
+        zone.length;
+    final longitude =
+        zone.map((item) => item.location.longitude).reduce((a, b) => a + b) /
+        zone.length;
+    final count = zone.length;
+
+    return _AccidentZoneSummary(
+      location: LocationPoint(latitude: latitude, longitude: longitude),
+      count: count,
+      color: count >= 8
+          ? const Color(0xFFDC2626)
+          : count >= 6
+          ? const Color(0xFFF97316)
+          : const Color(0xFFEAB308),
+      markerSize: count >= 8
+          ? 118
+          : count >= 6
+          ? 102
+          : 88,
+      reports: zone,
+    );
+  }).toList();
+}
+
 class _DayNightStats {
   const _DayNightStats({
     required this.dayCount,
@@ -662,8 +892,7 @@ class _DayNightStats {
 
   int get dayPercent => total == 0 ? 0 : ((dayCount / total) * 100).round();
 
-  int get nightPercent =>
-      total == 0 ? 0 : ((nightCount / total) * 100).round();
+  int get nightPercent => total == 0 ? 0 : ((nightCount / total) * 100).round();
 }
 
 _DayNightStats _buildDayNightStats(List<RoadIssueReport> reports) {
@@ -803,35 +1032,27 @@ class _SimpleMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
+    final compactCount = RegExp(r'\((\d+)\)').firstMatch(label)?.group(1);
+    final shortLabel = label.split('(').first.trim();
+
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
       children: [
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          width: 28,
+          height: 28,
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(999),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.08),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            color: color.withValues(alpha: 0.18),
+            shape: BoxShape.circle,
           ),
         ),
-        const SizedBox(height: 4),
         Container(
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
             color: color,
             shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
             boxShadow: [
               BoxShadow(
                 color: color.withValues(alpha: 0.24),
@@ -840,9 +1061,88 @@ class _SimpleMarker extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(icon, color: Colors.white, size: 20),
+          child: Icon(icon, color: Colors.white, size: 18),
         ),
+        if (compactCount != null)
+          Positioned(
+            top: -6,
+            right: -8,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111827),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Text(
+                compactCount,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        if (compactCount == null)
+          Positioned(
+            top: -24,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 10,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Text(
+                shortLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
       ],
+    );
+  }
+}
+
+class _AccidentZoneMarker extends StatelessWidget {
+  const _AccidentZoneMarker({required this.zone});
+
+  final _AccidentZoneSummary zone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: zone.markerSize,
+        height: zone.markerSize,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: zone.color.withValues(alpha: 0.18),
+          border: Border.all(
+            color: zone.color.withValues(alpha: 0.78),
+            width: 3,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: zone.color.withValues(alpha: 0.14),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -208,7 +208,7 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
                 ),
                 const SizedBox(height: 12),
                 GestureDetector(
-                  onTap: _pickImageFromGallery,
+                  onTap: _pickImage,
                   child: Container(
                     padding: const EdgeInsets.all(18),
                     decoration: BoxDecoration(
@@ -238,8 +238,8 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
                             Expanded(
                               child: Text(
                                 _imagePath != null
-                                    ? 'Image selected from gallery. Tap again to change it.'
-                                    : 'You can send the report without an image, or tap here to choose one from gallery.',
+                                    ? 'Image selected. Tap again to change it from camera or gallery.'
+                                    : 'You can send the report without an image, or tap here to choose one from camera or gallery.',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.w600,
                                 ),
@@ -332,9 +332,59 @@ class _ReportComposerScreenState extends State<ReportComposerScreen> {
     );
   }
 
-  Future<void> _pickImageFromGallery() async {
+  Future<void> _pickImage() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Choose image source',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFF111827),
+                    child: Icon(Icons.camera_alt_rounded, color: Colors.white),
+                  ),
+                  title: const Text('Camera'),
+                  subtitle: const Text('Take a photo now'),
+                  onTap: () => Navigator.of(context).pop(ImageSource.camera),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const CircleAvatar(
+                    backgroundColor: Color(0xFFDC2626),
+                    child: Icon(Icons.photo_library_rounded, color: Colors.white),
+                  ),
+                  title: const Text('Gallery'),
+                  subtitle: const Text('Choose from your photos'),
+                  onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (source == null) {
+      return;
+    }
+
     final pickedFile = await _imagePicker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       imageQuality: 80,
     );
 

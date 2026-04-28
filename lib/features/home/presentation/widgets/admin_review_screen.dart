@@ -141,40 +141,6 @@ class AdminReviewScreen extends StatelessWidget {
                         'Location: ${report.location.latitude.toStringAsFixed(5)}, ${report.location.longitude.toStringAsFixed(5)}',
                         style: TextStyle(color: Colors.grey.shade700),
                       ),
-                      if (report.imageLabel != null) ...[
-                        const SizedBox(height: 10),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.network(
-                            report.imageLabel!,
-                            height: 180,
-                            width: double.infinity,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFFF9FAFB),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Row(
-                                  children: [
-                                    const Icon(Icons.broken_image_outlined),
-                                    const SizedBox(width: 8),
-                                    Expanded(
-                                      child: Text(
-                                        report.imageLabel!,
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
                       const SizedBox(height: 14),
                       Row(
                         children: [

@@ -9,9 +9,8 @@ import 'package:printing/printing.dart';
 class ReportPdfExportService {
   Future<void> exportAdminReports({
     required List<RoadIssueReport> reports,
-    required List<RoadSegment> roads,
   }) async {
-    final bytes = await _buildPdfBytes(reports: reports, roads: roads);
+    final bytes = await _buildPdfBytes(reports: reports);
     await Printing.layoutPdf(
       name: 'nagah_reports_export.pdf',
       onLayout: (_) async => bytes,
@@ -20,7 +19,6 @@ class ReportPdfExportService {
 
   Future<Uint8List> _buildPdfBytes({
     required List<RoadIssueReport> reports,
-    required List<RoadSegment> roads,
   }) async {
     final document = pw.Document();
     final now = DateTime.now();
@@ -32,19 +30,18 @@ class ReportPdfExportService {
       'Priority',
       'Suggested action',
       'Issue type',
-      'Road',
+      'Location point',
       'Period',
       'Status',
       'Reported at',
     ];
 
     final tableRows = sortedReports.map((report) {
-      final roadName = _resolveRoadName(report.roadId, roads);
       return [
         _priorityLabel(report),
         _actionLabel(report.issueType),
         report.issueType.label,
-        roadName,
+        _locationLabel(report.location),
         _periodLabel(report.createdAt),
         report.status.label,
         dateFormat.format(report.createdAt.toLocal()),
@@ -208,14 +205,8 @@ class ReportPdfExportService {
     );
   }
 
-  String _resolveRoadName(String roadId, List<RoadSegment> roads) {
-    for (final road in roads) {
-      if (road.id == roadId) {
-        return road.name;
-      }
-    }
-
-    return 'Unknown road';
+  String _locationLabel(LocationPoint location) {
+    return '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}';
   }
 
   String _periodLabel(DateTime createdAt) {

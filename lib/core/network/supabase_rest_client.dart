@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:nagah/core/network/supabase_config.dart';
@@ -79,6 +80,29 @@ class SupabaseRestClient {
     return const [];
   }
 
+  Future<String> uploadPublicFile({
+    required String bucket,
+    required String objectPath,
+    required File file,
+  }) async {
+    final bytes = await file.readAsBytes();
+    final response = await _httpClient.post(
+      Uri.parse(
+        '${SupabaseConfig.projectUrl}/storage/v1/object/$bucket/$objectPath',
+      ),
+      headers: {
+        'apikey': SupabaseConfig.anonKey,
+        'Authorization': 'Bearer ${SupabaseConfig.anonKey}',
+        'x-upsert': 'true',
+        'Content-Type': _contentTypeForPath(file.path),
+      },
+      body: bytes,
+    );
+
+    _decodeResponse(response);
+    return '${SupabaseConfig.projectUrl}/storage/v1/object/public/$bucket/$objectPath';
+  }
+
   Uri _buildUri(String table, [Map<String, String>? query]) {
     final uri = Uri.parse('${SupabaseConfig.baseUrl}/$table');
     if (query == null || query.isEmpty) {
@@ -104,5 +128,16 @@ class SupabaseRestClient {
     throw Exception(
       'Supabase error ${response.statusCode}: ${response.body}',
     );
+  }
+
+  String _contentTypeForPath(String path) {
+    final lower = path.toLowerCase();
+    if (lower.endsWith('.png')) {
+      return 'image/png';
+    }
+    if (lower.endsWith('.webp')) {
+      return 'image/webp';
+    }
+    return 'image/jpeg';
   }
 }
